@@ -19,10 +19,10 @@ const COMPANY = {
 };
 
 const KPI_STRIP = [
-  { label: 'Revenue', value: '$618M', delta: '+3.2% YoY', sentiment: 'neutral' as const },
-  { label: 'Gross Margin', value: '24.3%', delta: '8.1% operating', sentiment: 'neutral' as const },
-  { label: 'Leverage', value: '0.87x', delta: '$52M net debt', sentiment: 'positive' as const },
-  { label: 'Firepower', value: '$128M', delta: '$45M cash + $83M capacity', sentiment: 'positive' as const },
+  { label: 'Revenue', value: '$618M', delta: '+3.2% YoY' },
+  { label: 'Gross Margin', value: '24.3%', delta: '8.1% operating' },
+  { label: 'Leverage', value: '0.87x', delta: '$52M net debt' },
+  { label: 'Firepower', value: '$45M', delta: 'Cash on hand' },
 ];
 
 const REVENUE_SEGMENTS = [
@@ -36,44 +36,26 @@ const SEGMENT_COLORS = ['bg-[#f97316]', 'bg-indigo-500', 'bg-emerald-500'];
 const NARRATIVE_CARDS = [
   {
     label: 'Revenue & Growth',
-    headline: '$618M',
-    detail: '+3.2% YoY growth',
-    sentiment: 'neutral' as const,
     body: 'Moderate organic growth provides a stable foundation. Acquisitions could meaningfully accelerate revenue beyond organic capabilities without signaling desperation.',
   },
   {
     label: 'Profitability',
-    headline: '24.3%',
-    detail: '8.1% operating margin',
-    sentiment: 'neutral' as const,
     body: 'Moderate margins suggest acquisitions should be accretive or target margin-enhancing capabilities like manufacturing efficiency, brand premium, or scale advantages.',
   },
   {
     label: 'Cash Flow & Firepower',
-    headline: '$52M FCF',
-    detail: '$45M cash on hand',
-    sentiment: 'positive' as const,
     body: 'Positive FCF of $52M supports smaller acquisitions. Larger transformational deals would likely require debt financing or equity issuance.',
   },
   {
     label: 'Acquisitiveness',
-    headline: 'Selective Buyer',
-    detail: '$24M deployed in 2 years',
-    sentiment: 'neutral' as const,
     body: 'Selective acquisition approach -- the company targets deals carefully. May need to expand integration capabilities for larger or more frequent transactions.',
   },
   {
     label: 'Leverage & Capacity',
-    headline: '0.87x D/E',
-    detail: '$52M net debt',
-    sentiment: 'positive' as const,
     body: 'Moderate leverage at 0.87x with room for incremental debt to finance acquisitions. Could likely add 1-2x EBITDA in deal-related borrowing.',
   },
   {
     label: 'Competitive Positioning',
-    headline: 'Strong in Kitchen, Weak in Smart Home',
-    detail: '5 peers benchmarked',
-    sentiment: 'neutral' as const,
     body: 'HBB dominates kitchen small appliances but lacks the connected-home capabilities of iRobot and the premium brand positioning of Lovesac. Lifetime Brands represents the closest competitive overlap with a broader kitchenware portfolio. M&A could target smart appliance IP or premium DTC brands to close gaps.',
   },
 ];
@@ -83,7 +65,6 @@ const PULLQUOTES = [
     label: 'Earnings Call Insights',
     headline: 'DTC Push + Margin Focus',
     detail: '4 quarters of consistent messaging',
-    sentiment: 'positive' as const,
     quote: 'We are investing in our direct-to-consumer capabilities because we believe that is where the margin opportunity lives. Our Hamilton Beach Health initiative is still early but the customer response has been very encouraging and we see a real path to building a meaningful premium business over time.',
     speaker: 'CEO Scott Tidey',
     context: 'Management has consistently emphasized three strategic themes across recent earnings calls: expanding direct-to-consumer channels, driving margin improvement through operational efficiency, and building the Hamilton Beach Health brand as a premium growth vector.',
@@ -92,7 +73,6 @@ const PULLQUOTES = [
     label: 'Analyst Perspectives',
     headline: 'Cautiously Optimistic',
     detail: '3 analysts covering, $32 consensus target',
-    sentiment: 'positive' as const,
     quote: 'Can you help us understand the margin trajectory as you ramp the DTC business? It seems like the investment phase should start yielding returns in the back half, but I want to make sure we are modeling the puts and takes correctly.',
     speaker: 'Analyst Adam Bradley, Sidoti & Co.',
     context: 'Analyst coverage is limited but constructive. The consensus price target of $32 implies ~12% upside. Key analyst concerns center on margin timing from the DTC ramp and the competitive response from larger appliance players entering premium kitchen segments.',
@@ -100,21 +80,6 @@ const PULLQUOTES = [
 ];
 
 // ─── Helper Components ────────────────────────────────────────────────────
-
-function SentimentBadge({ sentiment }: { sentiment: 'positive' | 'neutral' | 'negative' }) {
-  const config = {
-    positive: { dot: 'bg-emerald-400', text: 'text-emerald-400', label: 'Bullish' },
-    neutral: { dot: 'bg-amber-400', text: 'text-amber-400', label: 'Neutral' },
-    negative: { dot: 'bg-red-400', text: 'text-red-400', label: 'Bearish' },
-  };
-  const c = config[sentiment];
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-      <span className={`text-[10px] font-semibold uppercase tracking-wider ${c.text}`}>{c.label}</span>
-    </span>
-  );
-}
 
 function formatRevenue(val: number): string {
   if (val >= 1e9) return `$${(val / 1e9).toFixed(1)}B`;
@@ -172,12 +137,9 @@ export function BriefingMockup() {
               <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-2">
                 {kpi.label}
               </p>
-              <div className="flex items-end justify-between">
-                <p className="font-mono text-2xl font-bold text-white leading-none">
-                  {kpi.value}
-                </p>
-                <SentimentBadge sentiment={kpi.sentiment} />
-              </div>
+              <p className="font-mono text-2xl font-bold text-white leading-none">
+                {kpi.value}
+              </p>
               <p className="text-xs text-[#64748b] mt-1.5 font-mono">
                 {kpi.delta}
               </p>
@@ -223,19 +185,10 @@ export function BriefingMockup() {
               key={card.label}
               className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5"
             >
-              <div className="flex items-center justify-between mb-3">
-                <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316]">
-                  {card.label}
-                </p>
-                <SentimentBadge sentiment={card.sentiment} />
-              </div>
-              <div className="flex items-baseline gap-2 mb-1">
-                <p className="font-mono text-xl font-bold text-white">
-                  {card.headline}
-                </p>
-                <p className="text-xs text-[#64748b]">{card.detail}</p>
-              </div>
-              <p className="text-sm text-[#94a3b8] leading-relaxed mt-2">
+              <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">
+                {card.label}
+              </p>
+              <p className="text-sm text-[#94a3b8] leading-relaxed">
                 {card.body}
               </p>
             </div>
@@ -250,12 +203,9 @@ export function BriefingMockup() {
               className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-6"
             >
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316]">
-                    {pq.label}
-                  </p>
-                  <SentimentBadge sentiment={pq.sentiment} />
-                </div>
+                <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316]">
+                  {pq.label}
+                </p>
                 <p className="text-xs text-[#64748b]">{pq.detail}</p>
               </div>
 
