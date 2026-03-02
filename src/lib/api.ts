@@ -192,7 +192,8 @@ export async function generateCompanyIdeas(
   topStrategicPriorities?: { title: string; score: number; rank: number }[],
   competitorProfiles?: CompetitorProfile[],
   promptData?: string,
-  competitorPromptData?: string
+  competitorPromptData?: string,
+  signal?: AbortSignal
 ): Promise<Idea[]> {
   const response = await fetch(`${BASE_URL}/generate-company-ideas`, {
     method: 'POST',
@@ -211,6 +212,7 @@ export async function generateCompanyIdeas(
       promptData,
       competitorPromptData,
     }),
+    signal,
   });
 
   if (!response.ok) {
@@ -222,8 +224,57 @@ export async function generateCompanyIdeas(
     throw new Error(`Failed to generate company ideas: ${detail}`);
   }
 
-  const data = await response.json();
-  return data.ideas as Idea[];
+  // Read streamed text chunks (Claude text + enrichment after delimiter)
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+  }
+
+  // Check for streamed errors
+  if (text.includes('__ERROR__')) {
+    const errorMsg = text.split('__ERROR__')[1]?.trim() || 'Unknown error';
+    throw new Error(`Failed to generate company ideas: ${errorMsg}`);
+  }
+
+  // Split Claude's JSON from enrichment data
+  const parts = text.split('__ENRICHMENT__');
+  const claudeText = parts[0];
+
+  // Parse enrichment map if present
+  let enrichmentMap: Record<string, { tags?: string[]; website?: string; logoUrl?: string }> = {};
+  if (parts[1]) {
+    try {
+      enrichmentMap = JSON.parse(parts[1].trim());
+    } catch { /* enrichment is optional — ideas work without it */ }
+  }
+
+  // Parse Claude's JSON response
+  const jsonMatch = claudeText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Failed to parse AI response');
+  const parsed = JSON.parse(jsonMatch[0]);
+
+  // Build ideas with enrichment merged in
+  return parsed.ideas.map(
+    (idea: { title: string; blurb: string | string[]; linkedTheme?: string; fromPool?: boolean }) => {
+      const enrichment = enrichmentMap[idea.title];
+      return {
+        id: crypto.randomUUID(),
+        title: idea.title,
+        tier: "specific_company" as const,
+        blurb: normalizeBlurb(idea.blurb),
+        source: idea.fromPool ? "inven_sourced" : "claude_injected",
+        createdAt: Date.now(),
+        tags: enrichment?.tags || [],
+        website: enrichment?.website,
+        logoUrl: enrichment?.logoUrl,
+        linkedTheme: idea.linkedTheme,
+      };
+    }
+  );
 }
 
 export async function generateNarrative(

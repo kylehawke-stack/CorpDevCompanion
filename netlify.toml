@@ -12,11 +12,17 @@
 [functions."generate-briefing"]
   timeout = 26
 
+[functions."generate-company-ideas"]
+  timeout = 60
+
+[functions."generate-seed-ideas"]
+  timeout = 60
+
 [dev]
   command = "npm run dev"
   targetPort = 5173
   framework = "#custom"
-  timeout = 60
+  timeout = 120
 
 [[redirects]]
   from = "/*"

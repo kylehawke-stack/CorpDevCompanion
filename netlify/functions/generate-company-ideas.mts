@@ -204,7 +204,8 @@ async function enrichCompany(
       )
       .trim();
     const searchRes = await fetch(
-      `https://financialmodelingprep.com/stable/search-name?query=${encodeURIComponent(cleanName)}&apikey=${fmpKey}`
+      `https://financialmodelingprep.com/stable/search-name?query=${encodeURIComponent(cleanName)}&apikey=${fmpKey}`,
+      { signal: AbortSignal.timeout(5000) }
     );
     if (!searchRes.ok) return null;
     const results: FmpSearchResult[] = await searchRes.json();
@@ -226,7 +227,8 @@ async function enrichCompany(
     if (overlap === 0 && cleanName.length > 4) return null; // No word overlap = likely wrong entity
 
     const profileRes = await fetch(
-      `https://financialmodelingprep.com/stable/profile?symbol=${encodeURIComponent(usResult.symbol)}&apikey=${fmpKey}`
+      `https://financialmodelingprep.com/stable/profile?symbol=${encodeURIComponent(usResult.symbol)}&apikey=${fmpKey}`,
+      { signal: AbortSignal.timeout(5000) }
     );
     if (!profileRes.ok) return null;
     const profiles = await profileRes.json();
@@ -396,14 +398,15 @@ Based on Step 2 voting results, the team has identified these strategic prioriti
 Top-ranked market segments and product categories:
 ${topRankings}
 ${contextSection}
-Generate SPECIFIC COMPANY acquisition targets that align with these top-ranked themes.
+Generate at least 35 SPECIFIC COMPANY acquisition targets that align with these top-ranked themes.
 ${filteredPool.length > 0 ? `
 INSTRUCTIONS FOR CANDIDATE POOL:
-- Select 10-12 of the best fits from the INVEN.AI CANDIDATE POOL above AND generate 8-10 on your own
+- Select 15-20 of the best fits from the INVEN.AI CANDIDATE POOL above AND generate 15-20 on your own
+- You MUST generate at least 35 companies total
 - Evaluate pool companies critically — don't include one just because it's listed
 - For pool companies, write blurb bullets based on the description provided
 - Mark each company with "fromPool": true if from the pool, "fromPool": false if your own suggestion
-` : `Generate 20 targets total.`}
+` : `Generate at least 35 targets total.`}
 Requirements:
 - All companies must be REAL and potentially acquirable
 - Keep targets realistically sized for this acquirer
@@ -438,125 +441,116 @@ Return ONLY valid JSON:
   ]
 }`;
 
+  // Build a lookup for Inven pool companies by name (for URL fallback)
+  const invenByName = new Map<string, InvenCompany>();
+  for (const c of filteredPool) {
+    invenByName.set(c.name.toLowerCase(), c);
+  }
+
   try {
     console.log("[generate-company-ideas] Starting Claude API call...");
     const stream = client.messages.stream({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 6000,
+      max_tokens: 10000,
       temperature: 0.8,
       system: systemBlocks,
       messages: [{ role: "user", content: taskPrompt }],
     });
 
-    // Collect streamed text
-    let text = "";
-    for await (const event of stream) {
-      if (
-        event.type === "content_block_delta" &&
-        event.delta.type === "text_delta"
-      ) {
-        text += event.delta.text;
-      }
-    }
-    console.log("[generate-company-ideas] Claude response received, length:", text.length);
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error("[generate-company-ideas] No JSON found in response:", text.slice(0, 500));
-      return new Response(
-        JSON.stringify({ error: "Failed to parse AI response — no JSON found" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonMatch[0]);
-    } catch (parseErr) {
-      console.error("[generate-company-ideas] JSON parse error:", parseErr);
-      return new Response(
-        JSON.stringify({ error: "Failed to parse AI response — invalid JSON" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!parsed.ideas || !Array.isArray(parsed.ideas)) {
-      return new Response(
-        JSON.stringify({ error: "AI response missing 'ideas' array" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Build a lookup for Inven pool companies by name (for URL fallback)
-    const invenByName = new Map<string, InvenCompany>();
-    for (const c of filteredPool) {
-      invenByName.set(c.name.toLowerCase(), c);
-    }
-
-    // Build ideas
-    const rawIdeas = parsed.ideas.map(
-      (idea: { title: string; tier: string; blurb: string | string[]; linkedTheme?: string; fromPool?: boolean }) => ({
-        id: crypto.randomUUID(),
-        title: idea.title,
-        tier: "specific_company" as const,
-        blurb: normalizeBlurb(idea.blurb),
-        source: (idea.fromPool ? "inven_sourced" : "claude_injected") as "inven_sourced" | "claude_injected",
-        createdAt: Date.now(),
-        website: undefined as string | undefined,
-        logoUrl: undefined as string | undefined,
-        tags: [] as string[],
-        linkedTheme: idea.linkedTheme,
-        _fromPool: !!idea.fromPool,
-      })
-    );
-    console.log("[generate-company-ideas] Parsed", rawIdeas.length, "ideas,", rawIdeas.filter((i: { _fromPool: boolean }) => i._fromPool).length, "from Inven pool");
-
-    // Enrich companies with FMP data — limit to 10 at a time to avoid timeouts
-    if (fmpKey) {
-      const batch1 = rawIdeas.slice(0, 10);
-      const batch2 = rawIdeas.slice(10);
-
-      const enrichBatch = async (batch: typeof rawIdeas, startIdx: number) => {
-        const enrichments = await Promise.allSettled(
-          batch.map((idea: { title: string }) =>
-            enrichCompany(idea.title, fmpKey)
-          )
-        );
-        for (let i = 0; i < batch.length; i++) {
-          const result = enrichments[i];
-          if (result.status === "fulfilled" && result.value) {
-            const data = result.value;
-            rawIdeas[startIdx + i].tags = data.tags;
-            rawIdeas[startIdx + i].website = data.website;
-            rawIdeas[startIdx + i].logoUrl = data.logoUrl;
+    // Stream the response — handler returns immediately, avoiding lambda-local timeout
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          // Phase 1: Stream Claude's text chunks to client
+          let text = "";
+          for await (const event of stream) {
+            if (
+              event.type === "content_block_delta" &&
+              event.delta.type === "text_delta"
+            ) {
+              text += event.delta.text;
+              controller.enqueue(encoder.encode(event.delta.text));
+            }
           }
+          console.log("[generate-company-ideas] Claude response received, length:", text.length);
+
+          // Phase 2: Parse Claude's response and do FMP enrichment
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            console.error("[generate-company-ideas] No JSON found in response:", text.slice(0, 500));
+            controller.enqueue(encoder.encode("\n\n__ERROR__\nNo JSON found in AI response"));
+            controller.close();
+            return;
+          }
+
+          let parsed;
+          try {
+            parsed = JSON.parse(jsonMatch[0]);
+          } catch {
+            controller.enqueue(encoder.encode("\n\n__ERROR__\nFailed to parse AI response JSON"));
+            controller.close();
+            return;
+          }
+
+          if (!parsed.ideas || !Array.isArray(parsed.ideas)) {
+            controller.enqueue(encoder.encode("\n\n__ERROR__\nAI response missing ideas array"));
+            controller.close();
+            return;
+          }
+
+          console.log("[generate-company-ideas] Parsed", parsed.ideas.length, "ideas, enriching...");
+
+          // FMP enrichment — all in parallel, each call has a 5s timeout
+          const enrichmentMap: Record<string, CompanyEnrichment> = {};
+          if (fmpKey) {
+            const enrichments = await Promise.allSettled(
+              parsed.ideas.map((idea: { title: string }) =>
+                enrichCompany(idea.title, fmpKey)
+              )
+            );
+            for (let i = 0; i < parsed.ideas.length; i++) {
+              const result = enrichments[i];
+              if (result.status === "fulfilled" && result.value) {
+                enrichmentMap[parsed.ideas[i].title] = result.value;
+              }
+            }
+            console.log("[generate-company-ideas] FMP enrichment complete");
+          }
+
+          // Fallback enrichment for Inven-sourced companies where FMP returned nothing
+          for (const idea of parsed.ideas) {
+            if (idea.fromPool && !enrichmentMap[idea.title]) {
+              const invenMatch = invenByName.get(idea.title.toLowerCase());
+              if (invenMatch) {
+                enrichmentMap[idea.title] = {
+                  tags: ["Private", "Inven.ai sourced"],
+                  website: invenMatch.url,
+                };
+              }
+            }
+          }
+
+          // Send enrichment data after delimiter
+          controller.enqueue(encoder.encode("\n\n__ENRICHMENT__\n" + JSON.stringify(enrichmentMap)));
+          controller.close();
+        } catch (err) {
+          console.error("[generate-company-ideas] Stream error:", err);
+          controller.enqueue(
+            encoder.encode("\n\n__ERROR__\n" + (err instanceof Error ? err.message : "Unknown error"))
+          );
+          controller.close();
         }
-      };
+      },
+    });
 
-      await enrichBatch(batch1, 0);
-      if (batch2.length > 0) {
-        await enrichBatch(batch2, 10);
-      }
-      console.log("[generate-company-ideas] FMP enrichment complete");
-    }
-
-    // Fallback enrichment for Inven-sourced companies where FMP returned nothing
-    for (const idea of rawIdeas) {
-      if (idea._fromPool && (!idea.tags || idea.tags.length === 0)) {
-        const invenMatch = invenByName.get(idea.title.toLowerCase());
-        if (invenMatch) {
-          idea.website = invenMatch.url;
-          idea.tags = ["Private", "Inven.ai sourced"];
-        }
-      }
-    }
-
-    // Clean up internal field before sending response
-    const cleanedIdeas = rawIdeas.map(({ _fromPool, ...rest }: { _fromPool: boolean; [key: string]: unknown }) => rest);
-
-    return new Response(JSON.stringify({ ideas: cleanedIdeas }), {
+    return new Response(readable, {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Accel-Buffering": "no",
+        "Cache-Control": "no-cache",
+      },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

@@ -53,24 +53,46 @@ export default async function handler(req: Request, _context: Context) {
 
   const taskPrompt = `You have two tasks based on the financial data provided above:
 
-TASK 1: Generate 3 qualitative insight cards from earnings calls, analyst data, and competitive landscape.
+TASK 1: Generate 9-23 qualitative insight cards from earnings calls, analyst data, and competitive landscape.
 TASK 2: Generate 18-30 strategic framework options for pairwise voting (3-5 per dimension, ordered conservative to aggressive).
 
 ═══ TASK 1: QUALITATIVE INSIGHT CARDS ═══
 
-Generate exactly 3 insight cards. Cards 1-6 (Revenue, Profitability, Cash Flow, Firepower, Leverage, Acquisitiveness) are already computed from structured data — do NOT generate those.
+Cards 1-6 (Revenue, Profitability, Cash Flow, Firepower, Leverage, Acquisitiveness) are already computed from structured data — do NOT generate those.
 
-1. "Earnings Call Insights" — synthesize the key strategic themes management discussed across the earnings calls, with HEAVY weight on the analyst Q&A sections. What is leadership focused on? What are they worried about? Mention specific initiatives by name. You MUST include a direct quote from the earnings call transcript attributed to its speaker, e.g., 'As CEO Scott Tidey noted: "quote here"'. Prefer quotes from the Q&A section over prepared remarks.
+Generate 3 CATEGORIES of insight cards. Two categories contain MULTIPLE individual cards; one is a single card.
 
-2. "Analyst Perspectives" — synthesize analyst sentiment from estimates, price targets, and analyst Q&A in earnings calls. You MUST include a direct quote from an analyst question or comment attributed to its speaker, e.g., 'Analyst Adam Bradley asked: "quote here"'. If no formal analyst coverage exists, use analyst questions from the earnings call Q&A.
+CATEGORY 1: "Earnings Call Insights" — Generate 3-10 individual cards, each with label: "Earnings Call Insights".
+Each card focuses on a DIFFERENT theme from earnings calls. Possible themes (only generate where there's real substance — skip thin themes):
+- Management priorities & strategic vision
+- Growth initiatives & new products
+- Margin commentary & cost management
+- Capital allocation & M&A signals
+- Supply chain & operations
+- Competitive dynamics & market share
+- Channel strategy (DTC, retail, international)
+- Analyst Q&A tensions & pushback
+- Guidance & forward outlook
+Each card MUST include a direct attributed quote, e.g., 'As CEO Scott Tidey noted: "quote here"'. Prefer quotes from the Q&A section over prepared remarks. Each card should cover a DISTINCT theme — no overlap.
 
-3. "Competitive Positioning" — How does the company compare to its direct competitors? Reference specific competitors by name from the competitive landscape data. Identify key competitive advantages, gaps, and M&A opportunities to strengthen positioning. Where are competitors strong that this company is weak? What adjacencies do competitor product portfolios reveal?
+CATEGORY 2: "Analyst Perspectives" — Generate 3-10 individual cards, each with label: "Analyst Perspectives".
+Each card focuses on a DIFFERENT analyst concern or thesis. Possible themes (only generate where there's real substance):
+- Revenue outlook & growth expectations
+- Margin trajectory & profitability concerns
+- Competitive threats & market positioning
+- M&A expectations & capital deployment
+- Valuation & price target rationale
+- Sector headwinds & macro risks
+Each card MUST include a direct attributed quote from an analyst, e.g., 'Analyst Adam Bradley asked: "quote here"'. If no formal analyst coverage exists, use analyst questions from the earnings call Q&A. Each card should cover a DISTINCT concern — no overlap.
+
+CATEGORY 3: "Competitive Positioning" — Generate exactly 1 card with label: "Competitive Positioning".
+How does the company compare to its direct competitors? Reference specific competitors by name from the competitive landscape data. Identify key competitive advantages, gaps, and M&A opportunities to strengthen positioning.
 
 Each card has:
-- "label": the category name (use exactly the names above)
+- "label": the category name (use EXACTLY "Earnings Call Insights", "Analyst Perspectives", or "Competitive Positioning")
 - "value": a punchy headline (e.g., "Cautiously Bullish", "DTC Push + Margin Focus", "Strong in Kitchen, Weak in Smart Home")
 - "detail": supporting context in 5-10 words
-- "observation": your strategic interpretation — 2-3 sentences, specific and actionable. MUST include a real attributed quote for cards #1 and #2.
+- "observation": your strategic interpretation — 2-3 sentences, specific and actionable. MUST include a real attributed quote for Earnings Call Insights and Analyst Perspectives cards.
 
 QUOTE RULES (critical):
 - Every quote MUST be complete — NEVER truncate mid-sentence with "..." or trail off
@@ -83,39 +105,48 @@ QUOTE RULES (critical):
 
 Generate 3-5 options per dimension across these 6 DIMENSIONS. Within each dimension, ORDER options from most conservative (dimensionIndex=0) to most aggressive (highest dimensionIndex). The team will vote on which approaches they prefer.
 
+These dimensions are informed by M&A best practices from McKinsey (programmatic M&A), Bain (scope vs. scale deals, outside-in targeting), Accenture (deal archetypes), Deloitte (deal structure alternatives), and BCG (string-of-pearls vs. big-bang). Use plain, direct language — no consulting jargon.
+
 DIMENSION 1 — GROWTH OBJECTIVE (3-5 options, conservative→aggressive)
-What is the main strategic goal of acquisitions? Order from safe/incremental to bold/transformational.
-Examples: "Market Share Consolidation" (conservative) → "Category Extension" → "Revenue Diversification" → "Geographic Expansion" → "Technology Leap" (aggressive)
+Why are you acquiring? Order from defensive/incremental to transformational.
+Examples: "Protect What We Have" (conservative) → "Get Bigger at What We Do" → "Fill Gaps in Our Lineup" → "Enter New Markets" → "Reinvent the Business" (aggressive)
+Context: This captures the scope-vs-scale spectrum. Options 0-1 are scale plays (more of what you do). Options 2-4 are scope plays (add new capabilities or markets).
 
 DIMENSION 2 — TARGET PROFILE (3-5 options, conservative→aggressive)
-What kind of company should we acquire? Order from safe/proven to risky/innovative.
-Examples: "Established Brands" (conservative) → "Complementary Players" → "Manufacturing Capability" → "Innovation Leaders" → "Emerging Disruptors" (aggressive)
+What kind of company fits? Order from safe/established to unproven/innovative.
+Examples: "Proven Operators" (conservative) → "Brand-Led Businesses" → "Capability Specialists" → "Fast Growers" → "Category Creators" (aggressive)
+Context: What asset are you really buying — cash flows, brand equity, IP/talent, growth trajectory, or market creation?
 
-DIMENSION 3 — RISK POSTURE (3-5 options, conservative→aggressive)
-How aggressive should the M&A strategy be? Order from cautious to bold.
-Examples: "Tuck-In Deals" (conservative) → "Bolt-On Adjacencies" → "Platform Acquisitions" → "Transformational Bets" (aggressive)
+DIMENSION 3 — DEAL APPROACH (3-5 options, conservative→aggressive)
+How do you want to build the portfolio? Order from fewest/biggest deals to most/smallest.
+Examples: "One Big Move" (conservative) → "A Few Targeted Bets" → "Steady Stream of Deals" → "Mix of Big and Small" (aggressive)
+Context: McKinsey's research shows programmatic acquirers (steady stream) outperform by +2.3% excess TRS annually. BCG frames this as string-of-pearls vs. big-bang. Both approaches have merit depending on the company's situation.
 
 DIMENSION 4 — INTEGRATION (3-5 options, conservative→aggressive)
-How will acquired companies fit into the portfolio? Order from tightest integration to most independent.
-Examples: "Full Integration" (conservative) → "Shared Services" → "Brand Rollup" → "Standalone Brands" (aggressive)
+How tightly do you integrate? Order from tightest to most independent.
+Examples: "Full Absorption" (conservative) → "Shared Backbone" → "Operate Independently" → "Arm's Length" (aggressive)
+Context: Accenture found only 27% of deals achieve both margin improvement and revenue growth — wrong integration model is the #1 deal killer. Tighter integration captures cost synergies but risks destroying what you bought.
 
-DIMENSION 5 — CAPABILITY PRIORITY (3-5 options, conservative→aggressive)
-What capability matters most in a target? Order from operational/tangible to strategic/intangible.
-Examples: "Manufacturing Scale" (conservative) → "Supply Chain Access" → "Distribution Network" → "Brand Equity" → "IP & Patents" (aggressive)
+DIMENSION 5 — DEAL STRUCTURE (3-5 options, conservative→aggressive)
+How do you structure the relationship? Order from full control to least control.
+Examples: "Full Acquisitions Only" (conservative) → "Majority Stakes" → "Joint Ventures" → "Minority Investments" (aggressive)
+Context: Deloitte found a 42% increase in alternative deal structures (JVs, alliances, partnerships). 88% of companies have shifted their targeting strategy in the past 2 years. Full buyouts aren't the only tool anymore.
 
 DIMENSION 6 — STRATEGIC PROXIMITY (3-5 options, conservative→aggressive)
-How far from the core business should acquisitions venture? Order from closest to furthest.
-Examples: "Core Strengthening" (conservative) → "Adjacent Categories" → "New-to-Company Expansion" → "White Space Diversification" (aggressive)
+How far from your core business? Order from closest to furthest.
+Examples: "Strengthen the Core" (conservative) → "Adjacent Spaces" → "New-to-Company Territory" → "Completely New Direction" (aggressive)
+Context: Bain's outside-in approach says start with where growth is heading, not what you already do. But Deloitte's data shows 88% of successful acquirers actually narrowed their sector focus. The tension between focus and expansion is the key strategic choice.
 
 CRITICAL RULES:
 - These are PURE STRATEGIC FRAMEWORK choices — they define the HOW and WHY of M&A, not the WHERE or WHAT
 - Do NOT reference specific product categories, market segments, end-markets, or industries in titles
 - Do NOT generate ideas that name what to buy — generate ideas about the strategic approach to buying
-- Titles must be 2-4 words — short strategic labels like survey answer choices
+- Titles must be 2-5 words — short, plain-language labels like survey answer choices
 - Each option should be informed by the financial data (reference it in the blurbs) but the TITLE stays framework-level
+- Use plain, direct language a corp dev team would actually use — avoid consulting buzzwords
 
-Examples of GOOD titles: "Geographic Expansion", "Bolt-On Adjacencies", "Manufacturing Capability", "Standalone Brands", "Premium Brand Play", "Vertical Integration", "DTC Channel Build", "Innovation Leaders"
-Examples of BAD titles (too product/market specific): "Commercial Food Service", "Outdoor Cooking Brands", "Smart Kitchen Tech", "Health & Wellness Products", "Latin American Markets"
+Examples of GOOD titles: "Get Bigger at What We Do", "Fill Gaps in Our Lineup", "Proven Operators", "Steady Stream of Deals", "Full Absorption", "Joint Ventures", "Adjacent Spaces"
+Examples of BAD titles (too jargony or product-specific): "Transformational Bets", "Bolt-On Adjacencies", "Commercial Food Service", "Smart Kitchen Tech", "White Space Diversification"
 
 BLURB RULES (for ideas):
 - "blurb" must be a JSON array of 2-3 strings
@@ -124,7 +155,7 @@ BLURB RULES (for ideas):
 - Use **bold** on one key phrase per idea
 
 Each idea MUST include:
-- "dimension": short label — one of "Growth Objective", "Target Profile", "Risk Posture", "Integration", "Capability Priority", "Strategic Proximity"
+- "dimension": short label — one of "Growth Objective", "Target Profile", "Deal Approach", "Integration", "Deal Structure", "Strategic Proximity"
 - "dimensionIndex": integer starting at 0 for most conservative within that dimension
 
 Return ONLY valid JSON:
@@ -135,6 +166,30 @@ Return ONLY valid JSON:
       "value": "DTC Push + Margin Focus",
       "detail": "4 quarters of consistent messaging",
       "observation": "Management is laser-focused on direct-to-consumer..."
+    },
+    {
+      "label": "Earnings Call Insights",
+      "value": "Supply Chain Reshoring",
+      "detail": "Shifting away from China sourcing",
+      "observation": "A recurring theme across calls was the move to diversify..."
+    },
+    {
+      "label": "Analyst Perspectives",
+      "value": "Cautiously Bullish",
+      "detail": "Price targets rising modestly",
+      "observation": "Analysts are warming to the margin story..."
+    },
+    {
+      "label": "Analyst Perspectives",
+      "value": "M&A Expectations Building",
+      "detail": "Balance sheet capacity highlighted",
+      "observation": "Several analysts probed management on acquisition plans..."
+    },
+    {
+      "label": "Competitive Positioning",
+      "value": "Strong in Kitchen, Weak in Smart Home",
+      "detail": "Clear gaps vs. key competitors",
+      "observation": "Compared to SharkNinja and Spectrum Brands..."
     }
   ],
   "ideas": [
@@ -150,7 +205,7 @@ Return ONLY valid JSON:
   try {
     const stream = client.messages.stream({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 4000,
+      max_tokens: 6000,
       temperature: 0.7,
       system: systemMessages,
       messages: [{ role: "user", content: taskPrompt }],

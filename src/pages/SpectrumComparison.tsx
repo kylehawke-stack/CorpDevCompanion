@@ -10,10 +10,10 @@ const DIMENSION = {
   score: 1347,
   position: 0.55, // weighted position (0 = full conservative, 1 = full aggressive)
   attributes: [
-    'Full Integration',
-    'Shared Services',
-    'Brand Portfolio',
-    'Standalone Operations',
+    'Full Absorption',
+    'Shared Backbone',
+    'Operate Independently',
+    'Arm\'s Length',
   ],
 };
 
