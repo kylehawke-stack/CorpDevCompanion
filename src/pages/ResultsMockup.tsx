@@ -2,9 +2,10 @@
  * ResultsMockup.tsx -- Redesigned Strategic Priorities results using segmented bar.
  * Navigate to /#results-mockup to preview.
  *
- * All 6 dimensions stacked full-width. Each card shows a segmented bar
- * divided into labeled zones with an orange position marker. Top-ranked
- * dimensions get an accent border to show visual priority.
+ * All 6 dimensions stacked full-width. Each card shows:
+ *   - Rank badge + dimension name + short description
+ *   - Segmented bar with labeled zones + orange position marker
+ *   - Left/right axis labels describe what the ends of the spectrum mean
  */
 
 interface MockAttribute {
@@ -15,15 +16,21 @@ interface MockAttribute {
 
 interface MockSpectrum {
   dimension: string;
+  description: string;    // What this dimension measures
+  leftLabel: string;      // What the left end means
+  rightLabel: string;     // What the right end means
   importanceRank: number;
   importance: number;
-  position: number; // 0-1, weighted vote position
+  position: number;       // 0-1, weighted vote position
   attributes: MockAttribute[];
 }
 
 const MOCK_SPECTRUMS: MockSpectrum[] = [
   {
     dimension: 'Integration',
+    description: 'How will acquired companies fit into the portfolio?',
+    leftLabel: 'Tightest integration',
+    rightLabel: 'Most independent',
     importanceRank: 1,
     importance: 1347,
     position: 0.58,
@@ -36,6 +43,9 @@ const MOCK_SPECTRUMS: MockSpectrum[] = [
   },
   {
     dimension: 'Growth Objective',
+    description: 'What is the main strategic goal of acquisitions?',
+    leftLabel: 'Safe / incremental',
+    rightLabel: 'Bold / transformational',
     importanceRank: 2,
     importance: 949,
     position: 0.37,
@@ -49,6 +59,9 @@ const MOCK_SPECTRUMS: MockSpectrum[] = [
   },
   {
     dimension: 'Target Profile',
+    description: 'What kind of company should we acquire?',
+    leftLabel: 'Safe / proven',
+    rightLabel: 'Risky / innovative',
     importanceRank: 3,
     importance: 945,
     position: 0.35,
@@ -61,39 +74,49 @@ const MOCK_SPECTRUMS: MockSpectrum[] = [
     ],
   },
   {
-    dimension: 'Deal Size',
+    dimension: 'Risk Posture',
+    description: 'How aggressive should the M&A strategy be?',
+    leftLabel: 'Cautious',
+    rightLabel: 'Bold',
     importanceRank: 4,
     importance: 870,
     position: 0.28,
     attributes: [
-      { title: 'Tuck-in (<$50M)', dimensionIndex: 0, displayScore: 920 },
-      { title: 'Mid-Market ($50-200M)', dimensionIndex: 1, displayScore: 890 },
-      { title: 'Large ($200M-1B)', dimensionIndex: 2, displayScore: 830 },
-      { title: 'Transformational (>$1B)', dimensionIndex: 3, displayScore: 790 },
+      { title: 'Tuck-In Deals', dimensionIndex: 0, displayScore: 920 },
+      { title: 'Bolt-On Adjacencies', dimensionIndex: 1, displayScore: 890 },
+      { title: 'Platform Acquisitions', dimensionIndex: 2, displayScore: 830 },
+      { title: 'Transformational Bets', dimensionIndex: 3, displayScore: 790 },
     ],
   },
   {
-    dimension: 'Geographic Focus',
+    dimension: 'Capability Priority',
+    description: 'What capability matters most in a target?',
+    leftLabel: 'Operational / tangible',
+    rightLabel: 'Strategic / intangible',
     importanceRank: 5,
     importance: 820,
-    position: 0.22,
+    position: 0.42,
     attributes: [
-      { title: 'Domestic Core', dimensionIndex: 0, displayScore: 890 },
-      { title: 'North America', dimensionIndex: 1, displayScore: 860 },
-      { title: 'Developed Markets', dimensionIndex: 2, displayScore: 810 },
-      { title: 'Emerging Markets', dimensionIndex: 3, displayScore: 750 },
+      { title: 'Manufacturing Scale', dimensionIndex: 0, displayScore: 850 },
+      { title: 'Supply Chain Access', dimensionIndex: 1, displayScore: 830 },
+      { title: 'Distribution Network', dimensionIndex: 2, displayScore: 810 },
+      { title: 'Brand Equity', dimensionIndex: 3, displayScore: 790 },
+      { title: 'IP & Patents', dimensionIndex: 4, displayScore: 760 },
     ],
   },
   {
-    dimension: 'Value Creation',
+    dimension: 'Strategic Proximity',
+    description: 'How far from the core business should acquisitions venture?',
+    leftLabel: 'Closest to core',
+    rightLabel: 'Furthest from core',
     importanceRank: 6,
     importance: 780,
     position: 0.45,
     attributes: [
-      { title: 'Cost Synergies', dimensionIndex: 0, displayScore: 810 },
-      { title: 'Revenue Synergies', dimensionIndex: 1, displayScore: 790 },
-      { title: 'Capability Acquisition', dimensionIndex: 2, displayScore: 770 },
-      { title: 'Market Access', dimensionIndex: 3, displayScore: 760 },
+      { title: 'Core Strengthening', dimensionIndex: 0, displayScore: 810 },
+      { title: 'Adjacent Categories', dimensionIndex: 1, displayScore: 790 },
+      { title: 'New-to-Company', dimensionIndex: 2, displayScore: 770 },
+      { title: 'White Space Diversification', dimensionIndex: 3, displayScore: 760 },
     ],
   },
 ];
@@ -105,7 +128,7 @@ function RankBadge({ rank }: { rank: number }) {
   return (
     <span
       className={`
-        inline-flex items-center justify-center w-8 h-8 rounded-lg font-mono text-sm font-bold
+        inline-flex items-center justify-center w-8 h-8 rounded-lg font-mono text-sm font-bold shrink-0
         ${isTop
           ? 'bg-[#f97316]/15 text-[#f97316] border border-[#f97316]/30'
           : 'bg-[#1e293b] text-[#94a3b8] border border-[#2a3a4e]'
@@ -124,7 +147,6 @@ function SegmentedBar({ spectrum }: { spectrum: MockSpectrum }) {
   const posPercent = spectrum.position * 100;
 
   // Which segment does the position fall in?
-  const segWidth = 100 / segments.length;
   const activeIdx = Math.min(
     Math.floor(spectrum.position * segments.length),
     segments.length - 1
@@ -132,13 +154,13 @@ function SegmentedBar({ spectrum }: { spectrum: MockSpectrum }) {
 
   return (
     <div className="mt-4">
-      {/* Axis labels */}
+      {/* Axis labels -- dimension-specific descriptions */}
       <div className="flex justify-between mb-2">
-        <span className="text-[10px] uppercase tracking-widest text-[#94a3b8] font-medium">
-          Conservative
+        <span className="text-[11px] text-[#94a3b8]">
+          {spectrum.leftLabel}
         </span>
-        <span className="text-[10px] uppercase tracking-widest text-[#94a3b8] font-medium">
-          Aggressive
+        <span className="text-[11px] text-[#94a3b8]">
+          {spectrum.rightLabel}
         </span>
       </div>
 
@@ -172,7 +194,7 @@ function SegmentedBar({ spectrum }: { spectrum: MockSpectrum }) {
           })}
         </div>
 
-        {/* Orange position dot -- absolutely positioned on the bar */}
+        {/* Orange position dot */}
         <div
           className="absolute top-0 pointer-events-none flex items-center justify-center"
           style={{
@@ -222,19 +244,24 @@ function DimensionCard({ spectrum }: { spectrum: MockSpectrum }) {
         isTop ? 'border-[#f97316]/25' : 'border-[#2a3a4e]'
       }`}
     >
-      {/* Header: rank, name, score */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* Header: rank, name, description, score */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
           <RankBadge rank={spectrum.importanceRank} />
-          <h3 className="text-white font-semibold text-lg">
-            {spectrum.dimension}
-          </h3>
+          <div>
+            <h3 className="text-[#e2e8f0] font-semibold text-lg leading-tight">
+              {spectrum.dimension}
+            </h3>
+            <p className="text-[13px] text-[#94a3b8] mt-0.5">
+              {spectrum.description}
+            </p>
+          </div>
         </div>
-        <div className="text-right">
+        <div className="text-right shrink-0">
           <p className="font-mono text-sm text-[#e2e8f0]">
             {Math.round(spectrum.importance)}
           </p>
-          <p className="text-[10px] text-[#94a3b8] uppercase tracking-wider">
+          <p className="text-[10px] text-[#64748b] uppercase tracking-wider">
             score
           </p>
         </div>
@@ -281,9 +308,9 @@ export function ResultsMockup() {
             Force-Ranked M&A Dimensions
           </h2>
           <p className="text-sm text-[#94a3b8]">
-            6 strategic dimensions ranked by team consensus. Each bar shows the
-            spectrum of options from conservative to aggressive, with the orange
-            marker at the team's weighted position.
+            6 strategic dimensions ranked by team consensus. The bar shows the
+            spectrum of options with the orange marker at the team's weighted
+            position.
           </p>
         </div>
 
