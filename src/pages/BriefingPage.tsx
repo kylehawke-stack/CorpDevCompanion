@@ -82,9 +82,9 @@ export function BriefingPage() {
     .map(label => highlights.find(h => h.label === label))
     .filter(Boolean) as FinancialHighlight[];
 
-  const pullquoteHighlights = BRIEFING_CARD_GROUPS.pullquoteLabels
-    .map(label => highlights.find(h => h.label === label))
-    .filter(Boolean) as FinancialHighlight[];
+  const pullquoteHighlights = highlights.filter(h =>
+    (BRIEFING_CARD_GROUPS.pullquoteLabels as readonly string[]).includes(h.label)
+  );
 
   // Any remaining cards not captured above (fallback for older data shapes)
   const usedLabels: Set<string> = new Set([
@@ -226,10 +226,10 @@ export function BriefingPage() {
         {/* ── Pullquote Section (Earnings Call + Analyst) ── */}
         {pullquoteHighlights.length > 0 ? (
           <div className="space-y-5 mb-10">
-            {pullquoteHighlights.map((h) => {
+            {pullquoteHighlights.map((h, idx) => {
               const extracted = extractQuote(h.observation);
               return (
-                <div key={h.label} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-6">
+                <div key={`${h.label}-${idx}`} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-6">
                   <div className="flex items-center justify-between mb-4">
                     <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316]">
                       {h.label}
