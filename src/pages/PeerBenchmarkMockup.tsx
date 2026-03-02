@@ -278,6 +278,81 @@ export function PeerBenchmarkMockup() {
           </div>
         </div>
 
+        {/* ── Acquisition Firepower ── */}
+        {(() => {
+          const TARGET_LEVERAGE = 3.0;
+          const firepowerData = PEERS
+            .map(p => {
+              const ebitda = p.ebitda ?? 0;
+              const de = p.debtToEquity ?? 0;
+              const headroom = Math.max(0, TARGET_LEVERAGE - de);
+              const fp = ebitda > 0 ? ebitda * headroom : 0;
+              return { symbol: p.symbol, name: p.name, ebitda, de, headroom, firepower: fp, isTarget: p.symbol === TARGET };
+            })
+            .filter(d => d.firepower > 0)
+            .sort((a, b) => b.firepower - a.firepower);
+
+          if (firepowerData.length === 0) return null;
+
+          const maxFP = Math.max(...firepowerData.map(d => d.firepower));
+
+          return (
+            <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5 mb-8">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Acquisition Firepower</p>
+                  <p className="text-xs text-[#64748b]">
+                    {'Estimated M&A capacity based on EBITDA and leverage headroom (target: '}{TARGET_LEVERAGE.toFixed(1)}{'x D/E ceiling)'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {firepowerData.map((d, i) => {
+                  const barPct = (d.firepower / maxFP) * 100;
+                  return (
+                    <div key={d.symbol} className="flex items-center gap-3">
+                      <span className={`text-[10px] font-mono w-4 text-right shrink-0 ${i === 0 ? 'text-emerald-400' : 'text-[#64748b]'}`}>
+                        {i + 1}
+                      </span>
+                      <span className={`text-xs font-mono w-10 shrink-0 text-right ${d.isTarget ? 'text-[#f97316] font-bold' : 'text-[#94a3b8]'}`}>
+                        {d.symbol}
+                      </span>
+                      <div className="flex-1 h-6 bg-[#0f1419] rounded overflow-hidden">
+                        <div
+                          className="h-full rounded transition-all flex items-center"
+                          style={{
+                            width: `${Math.max(barPct, 4)}%`,
+                            backgroundColor: d.isTarget ? '#f97316' : CHART_COLORS[d.symbol] || '#3b82f6',
+                            opacity: d.isTarget ? 1 : 0.6,
+                          }}
+                        >
+                          <span className="text-[10px] font-mono font-semibold text-white pl-2 truncate">
+                            {fmt(d.firepower)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right w-32">
+                        <span className="text-[10px] font-mono text-[#64748b]">
+                          {fmt(d.ebitda)}{' EBITDA'}
+                        </span>
+                        <span className="text-[10px] text-[#475569] mx-1">{'\u00d7'}</span>
+                        <span className="text-[10px] font-mono text-[#64748b]">
+                          {d.headroom.toFixed(1)}{'x'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="text-[10px] text-[#475569] mt-3 italic">
+                {'Firepower = EBITDA \u00d7 (3.0x ceiling \u2013 current D/E). Assumes incremental debt capacity only; excludes cash on hand.'}
+              </p>
+            </div>
+          );
+        })()}
+
         {/* ── Comprehensive Metrics Table ── */}
         <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl overflow-hidden mb-8">
           <div className="overflow-x-auto">
@@ -447,7 +522,16 @@ export function PeerBenchmarkMockup() {
               <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={{ stroke: '#2a3a4e' }} tickLine={false} />
               <YAxis tickFormatter={v => `${v}%`} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} iconType="circle" iconSize={8} />
+              <Legend
+                wrapperStyle={{ fontSize: 11, color: '#94a3b8' }}
+                iconType="circle"
+                iconSize={8}
+                payload={[
+                  { value: 'Gross', type: 'circle', color: '#10b981' },
+                  { value: 'Operating', type: 'circle', color: '#3b82f6' },
+                  { value: 'Net', type: 'circle', color: '#f59e0b' },
+                ]}
+              />
               <Bar dataKey="Gross" fill="#10b981" radius={[2, 2, 0, 0]} />
               <Bar dataKey="Operating" fill="#3b82f6" radius={[2, 2, 0, 0]} />
               <Bar dataKey="Net" fill="#f59e0b" radius={[2, 2, 0, 0]} />
