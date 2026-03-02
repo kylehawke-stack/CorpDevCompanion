@@ -151,7 +151,7 @@ function DotPlotLegend() {
 
           {/* Legend */}
           <div className="flex flex-col gap-1 min-w-[160px]">
-            {segments.map((seg, i) => (
+            {segments.map((seg) => (
               <div key={seg} className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#475569] flex-shrink-0" />
                 <span className="text-xs text-[#94a3b8]">{seg}</span>
