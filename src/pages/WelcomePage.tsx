@@ -137,6 +137,15 @@ export function WelcomePage() {
                   <li>AI generates specific company targets for final ranking</li>
                 </ol>
               </div>
+
+              <div className="mt-4 pt-4 border-t border-edge text-center">
+                <a
+                  href="#mockup"
+                  className="text-xs text-[#f97316] hover:text-[#fb923c] underline underline-offset-2 transition-colors"
+                >
+                  View Briefing Design Mockup
+                </a>
+              </div>
             </>
           ) : (
             <div className="py-2">
