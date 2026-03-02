@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@theme {
+  /* Surfaces */
+  --color-surface-base: #0f1419;
+  --color-surface-card: #1a1f2e;
+  --color-surface-elevated: #242938;
+  --color-surface-hover: #2a3040;
+
+  /* Borders */
+  --color-edge: #2d3548;
+  --color-edge-light: #3a4459;
+
+  /* Text */
+  --color-heading: #f1f5f9;
+  --color-body: #cbd5e1;
+  --color-muted: #64748b;
+  --color-dimmed: #475569;
+
+  /* Accent (orange from v0 design) */
+  --color-accent: #f97316;
+  --color-accent-hover: #ea580c;
+  --color-accent-muted: #f97316/20;
+
+  /* Semantic */
+  --color-positive: #22c55e;
+  --color-negative: #ef4444;
+  --color-warning: #eab308;
+  --color-info: #3b82f6;
+
+  /* Keep navy for a few accent uses */
+  --color-navy-500: #1a2f8a;
+  --color-navy-600: #0f1f6b;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+body {
+  @apply bg-surface-base text-body antialiased;
+}
+
+/* Dark scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-surface-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-edge);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-edge-light);
+}
+
+/* Text selection */
+::selection {
+  background: var(--color-accent);
+  color: white;
+}

@@ -1,0 +1,24 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  # Max timeout for the analyze-company function (heavy data pipeline)
+  external_node_modules = ["@anthropic-ai/sdk"]
+
+[functions."analyze-company"]
+  timeout = 26
+
+[functions."generate-briefing"]
+  timeout = 26
+
+[dev]
+  command = "npm run dev"
+  targetPort = 5173
+  framework = "#custom"
+  timeout = 60
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

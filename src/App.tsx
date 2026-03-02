@@ -1,0 +1,42 @@
+import { GameStateProvider, useGameState } from './context/GameStateContext.tsx';
+import { WelcomePage } from './pages/WelcomePage.tsx';
+import { PeerSelectionPage } from './pages/PeerSelectionPage.tsx';
+import { PeerBenchmarkPage } from './pages/PeerBenchmarkPage.tsx';
+import { BriefingPage } from './pages/BriefingPage.tsx';
+import { VotePage } from './pages/VotePage.tsx';
+import { TransitionPage } from './pages/TransitionPage.tsx';
+import { ResultsPage } from './pages/ResultsPage.tsx';
+
+function AppRouter() {
+  const { state } = useGameState();
+
+  switch (state.phase) {
+    case 'welcome':
+      return <WelcomePage />;
+    case 'analyzing':
+      return <WelcomePage />;
+    case 'peer_selection':
+      return <PeerSelectionPage />;
+    case 'peer_benchmarking':
+      return <PeerBenchmarkPage />;
+    case 'briefing':
+      return <BriefingPage />;
+    case 'voting_step1':
+    case 'voting_step2':
+    case 'voting_step3':
+      return <VotePage />;
+    case 'transition1':
+    case 'transition2':
+      return <TransitionPage />;
+    case 'results':
+      return <ResultsPage />;
+  }
+}
+
+export default function App() {
+  return (
+    <GameStateProvider>
+      <AppRouter />
+    </GameStateProvider>
+  );
+}

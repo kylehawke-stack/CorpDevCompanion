@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 interface RequestBody {
   promptData: string;
+  competitorPromptData?: string;
 }
 
 export default async function handler(req: Request, _context: Context) {
@@ -15,7 +16,7 @@ export default async function handler(req: Request, _context: Context) {
   }
 
   const body: RequestBody = await req.json();
-  const { promptData } = body;
+  const { promptData, competitorPromptData } = body;
 
   if (!promptData) {
     return new Response(JSON.stringify({ error: "Missing promptData" }), {
@@ -26,12 +27,34 @@ export default async function handler(req: Request, _context: Context) {
 
   const client = new Anthropic({ apiKey });
 
-  const prompt = `You are a senior M&A strategist. You have two tasks:
+  // System message: persona + financial context (cached for reuse across subsequent calls)
+  const systemMessages: Anthropic.Messages.TextBlockParam[] = [
+    {
+      type: "text" as const,
+      text: "You are a senior M&A strategist providing analysis for a corporate development team.",
+    },
+    {
+      type: "text" as const,
+      text: promptData,
+      // @ts-expect-error — cache_control is supported by the API but not fully typed in all SDK versions
+      cache_control: competitorPromptData ? undefined : { type: "ephemeral" },
+    },
+  ];
+
+  // Block 3: Competitor financial profiles (cached)
+  if (competitorPromptData) {
+    systemMessages.push({
+      type: "text" as const,
+      text: competitorPromptData,
+      // @ts-expect-error — cache_control is supported by the API but not fully typed in all SDK versions
+      cache_control: { type: "ephemeral" },
+    });
+  }
+
+  const taskPrompt = `You have two tasks based on the financial data provided above:
 
 TASK 1: Generate 3 qualitative insight cards from earnings calls, analyst data, and competitive landscape.
-TASK 2: Generate 24 strategic framework options for pairwise voting.
-
-${promptData}
+TASK 2: Generate 18-30 strategic framework options for pairwise voting (3-5 per dimension, ordered conservative to aggressive).
 
 ═══ TASK 1: QUALITATIVE INSIGHT CARDS ═══
 
@@ -49,33 +72,40 @@ Each card has:
 - "detail": supporting context in 5-10 words
 - "observation": your strategic interpretation — 2-3 sentences, specific and actionable. MUST include a real attributed quote for cards #1 and #2.
 
+QUOTE RULES (critical):
+- Every quote MUST be complete — NEVER truncate mid-sentence with "..." or trail off
+- If a quote is too long, pick a shorter self-contained excerpt from the same speaker
+- Attribute every quote: 'As CEO [Name] noted: "complete quote here"'
+- If you cannot find a complete, meaningful quote, paraphrase instead of truncating
+- Prefer concise 1-2 sentence quotes that capture the key insight
+
 ═══ TASK 2: STRATEGIC FRAMEWORK OPTIONS ═══
 
-Generate exactly 24 strategic options across these 6 DIMENSIONS (4 options each). The team will vote on which approaches they prefer.
+Generate 3-5 options per dimension across these 6 DIMENSIONS. Within each dimension, ORDER options from most conservative (dimensionIndex=0) to most aggressive (highest dimensionIndex). The team will vote on which approaches they prefer.
 
-DIMENSION 1 — PRIMARY GROWTH OBJECTIVE (4 options)
-What is the main strategic goal of acquisitions? Options like:
-"Geographic Expansion", "Category Extension", "Revenue Diversification", "Market Share Consolidation", "Vertical Integration", "Technology Leap", "Scale & Efficiency"
+DIMENSION 1 — GROWTH OBJECTIVE (3-5 options, conservative→aggressive)
+What is the main strategic goal of acquisitions? Order from safe/incremental to bold/transformational.
+Examples: "Market Share Consolidation" (conservative) → "Category Extension" → "Revenue Diversification" → "Geographic Expansion" → "Technology Leap" (aggressive)
 
-DIMENSION 2 — TARGET COMPANY PROFILE (4 options)
-What kind of company should we acquire? Options like:
-"Established Brands", "Innovation Leaders", "Manufacturing Capability", "Channel & Distribution", "Emerging Disruptors", "Margin Enhancers", "Complementary Players"
+DIMENSION 2 — TARGET PROFILE (3-5 options, conservative→aggressive)
+What kind of company should we acquire? Order from safe/proven to risky/innovative.
+Examples: "Established Brands" (conservative) → "Complementary Players" → "Manufacturing Capability" → "Innovation Leaders" → "Emerging Disruptors" (aggressive)
 
-DIMENSION 3 — DEAL RISK POSTURE (4 options)
-How aggressive should the M&A strategy be? Options like:
-"Bolt-On Adjacencies", "Transformational Bets", "Defensive Consolidation", "Platform Acquisitions", "Tuck-In Deals", "Scale-Up Plays", "Strategic Optionality"
+DIMENSION 3 — RISK POSTURE (3-5 options, conservative→aggressive)
+How aggressive should the M&A strategy be? Order from cautious to bold.
+Examples: "Tuck-In Deals" (conservative) → "Bolt-On Adjacencies" → "Platform Acquisitions" → "Transformational Bets" (aggressive)
 
-DIMENSION 4 — INTEGRATION APPROACH (4 options)
-How will acquired companies fit into the portfolio? Options like:
-"Full Integration", "Standalone Brands", "Brand Rollup", "Capability Absorption", "Joint Venture Model", "Holding Company", "Shared Services"
+DIMENSION 4 — INTEGRATION (3-5 options, conservative→aggressive)
+How will acquired companies fit into the portfolio? Order from tightest integration to most independent.
+Examples: "Full Integration" (conservative) → "Shared Services" → "Brand Rollup" → "Standalone Brands" (aggressive)
 
-DIMENSION 5 — STRATEGIC CAPABILITY PRIORITY (4 options)
-What capability matters most in a target? Options like:
-"Manufacturing Scale", "Brand Equity", "IP & Patents", "Distribution Network", "Digital & DTC", "Talent & Engineering", "Supply Chain Access"
+DIMENSION 5 — CAPABILITY PRIORITY (3-5 options, conservative→aggressive)
+What capability matters most in a target? Order from operational/tangible to strategic/intangible.
+Examples: "Manufacturing Scale" (conservative) → "Supply Chain Access" → "Distribution Network" → "Brand Equity" → "IP & Patents" (aggressive)
 
-DIMENSION 6 — STRATEGIC PROXIMITY (4 options)
-How far from the core business should acquisitions venture? This dimension is informed by the competitive landscape — how close to existing competitors vs. exploring white space. Options like:
-"Core Strengthening", "Adjacent Categories", "New-to-Company Expansion", "White Space Diversification"
+DIMENSION 6 — STRATEGIC PROXIMITY (3-5 options, conservative→aggressive)
+How far from the core business should acquisitions venture? Order from closest to furthest.
+Examples: "Core Strengthening" (conservative) → "Adjacent Categories" → "New-to-Company Expansion" → "White Space Diversification" (aggressive)
 
 CRITICAL RULES:
 - These are PURE STRATEGIC FRAMEWORK choices — they define the HOW and WHY of M&A, not the WHERE or WHAT
@@ -93,6 +123,10 @@ BLURB RULES (for ideas):
 - Under 15 words per bullet — punchy, scannable
 - Use **bold** on one key phrase per idea
 
+Each idea MUST include:
+- "dimension": short label — one of "Growth Objective", "Target Profile", "Risk Posture", "Integration", "Capability Priority", "Strategic Proximity"
+- "dimensionIndex": integer starting at 0 for most conservative within that dimension
+
 Return ONLY valid JSON:
 {
   "highlights": [
@@ -106,6 +140,8 @@ Return ONLY valid JSON:
   "ideas": [
     {
       "title": "Short Label",
+      "dimension": "Growth Objective",
+      "dimensionIndex": 0,
       "blurb": ["**Key phrase** plus context for this company", "Second point about what this means"]
     }
   ]
@@ -116,7 +152,8 @@ Return ONLY valid JSON:
       model: "claude-sonnet-4-20250514",
       max_tokens: 4000,
       temperature: 0.7,
-      messages: [{ role: "user", content: prompt }],
+      system: systemMessages,
+      messages: [{ role: "user", content: taskPrompt }],
     });
 
     const encoder = new TextEncoder();

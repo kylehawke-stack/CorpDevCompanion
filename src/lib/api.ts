@@ -1,4 +1,4 @@
-import type { Idea, RankedIdea, StrategicContext, CompanyProfile, FinancialHighlight, RevenueSegment, CompetitorProfile } from '../types/index.ts';
+import type { Idea, RankedIdea, StrategicContext, CompanyProfile, FinancialHighlight, RevenueSegment, CompetitorProfile, PeerCompany, PeerFinancials } from '../types/index.ts';
 
 const BASE_URL = '/.netlify/functions';
 
@@ -35,14 +35,14 @@ function normalizeBlurb(blurb: string | string[]): string[] {
 }
 
 /** Phase 2: Send data to Claude for briefing cards + strategic ideas (streamed) */
-export async function generateBriefing(promptData: string): Promise<{
+export async function generateBriefing(promptData: string, competitorPromptData?: string): Promise<{
   highlights: FinancialHighlight[];
   ideas: Idea[];
 }> {
   const response = await fetch(`${BASE_URL}/generate-briefing`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ promptData }),
+    body: JSON.stringify({ promptData, competitorPromptData }),
   });
 
   if (!response.ok) {
@@ -72,13 +72,15 @@ export async function generateBriefing(promptData: string): Promise<{
   const parsed = JSON.parse(jsonMatch[0]);
 
   const ideas = parsed.ideas.map(
-    (idea: { title: string; blurb: string | string[] }) => ({
+    (idea: { title: string; blurb: string | string[]; dimension?: string; dimensionIndex?: number }) => ({
       id: crypto.randomUUID(),
       title: idea.title,
       tier: "strategic_priority",
       blurb: normalizeBlurb(idea.blurb),
       source: "seed",
       createdAt: Date.now(),
+      dimension: idea.dimension,
+      dimensionIndex: idea.dimensionIndex,
     })
   );
 
@@ -98,16 +100,23 @@ export async function generateSeedIdeas(
   companyProfile: CompanyProfile,
   topStrategicPriorities: { title: string; score: number; rank: number }[],
   strategicContext?: StrategicContext,
-  competitorProfiles?: CompetitorProfile[]
+  competitorProfiles?: CompetitorProfile[],
+  promptData?: string,
+  competitorPromptData?: string
 ): Promise<Idea[]> {
   const response = await fetch(`${BASE_URL}/generate-ideas`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ companyProfile, topStrategicPriorities, strategicContext, competitorProfiles }),
+    body: JSON.stringify({ companyProfile, topStrategicPriorities, strategicContext, competitorProfiles, promptData, competitorPromptData }),
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to generate ideas: ${response.statusText}`);
+    let detail = response.statusText;
+    try {
+      const body = await response.json();
+      if (body.error) detail = body.error;
+    } catch { /* ignore parse errors */ }
+    throw new Error(`Failed to generate ideas: ${detail}`);
   }
 
   const data = await response.json();
@@ -124,7 +133,9 @@ export async function injectIdeas(
   topStrategicPriorities?: { title: string; score: number; rank: number }[],
   lastInjectionAtVoteCount?: number,
   userDirections?: string[],
-  competitorProfiles?: CompetitorProfile[]
+  competitorProfiles?: CompetitorProfile[],
+  promptData?: string,
+  competitorPromptData?: string
 ): Promise<Idea[]> {
   // Identify previously injected ideas and their current performance
   const injectedPerformance = rankings
@@ -162,6 +173,8 @@ export async function injectIdeas(
       lastInjectionAtVoteCount,
       userDirections,
       competitorProfiles,
+      promptData,
+      competitorPromptData,
     }),
   });
 
@@ -177,7 +190,9 @@ export async function generateCompanyIdeas(
   rankings: RankedIdea[],
   strategicContext?: StrategicContext,
   topStrategicPriorities?: { title: string; score: number; rank: number }[],
-  competitorProfiles?: CompetitorProfile[]
+  competitorProfiles?: CompetitorProfile[],
+  promptData?: string,
+  competitorPromptData?: string
 ): Promise<Idea[]> {
   const response = await fetch(`${BASE_URL}/generate-company-ideas`, {
     method: 'POST',
@@ -193,11 +208,18 @@ export async function generateCompanyIdeas(
       strategicContext,
       topStrategicPriorities,
       competitorProfiles,
+      promptData,
+      competitorPromptData,
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to generate company ideas: ${response.statusText}`);
+    let detail = response.statusText;
+    try {
+      const body = await response.json();
+      if (body.error) detail = body.error;
+    } catch { /* ignore parse errors */ }
+    throw new Error(`Failed to generate company ideas: ${detail}`);
   }
 
   const data = await response.json();
@@ -235,4 +257,37 @@ export async function generateNarrative(
 
   const data = await response.json();
   return data.narrative as string;
+}
+
+export async function fetchPeers(symbol: string, sector?: string, industry?: string): Promise<PeerCompany[]> {
+  const response = await fetch(`${BASE_URL}/fetch-peers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol, sector, industry }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch peers: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.peers as PeerCompany[];
+}
+
+export async function fetchPeerData(symbols: string[]): Promise<{ peerFinancials: PeerFinancials[]; competitorPromptData?: string }> {
+  const response = await fetch(`${BASE_URL}/fetch-peer-data`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbols }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch peer data: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return {
+    peerFinancials: data.peerFinancials as PeerFinancials[],
+    competitorPromptData: data.competitorPromptData as string | undefined,
+  };
 }
