@@ -138,12 +138,18 @@ export function WelcomePage() {
                 </ol>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-edge text-center">
+              <div className="mt-4 pt-4 border-t border-edge flex justify-center gap-4">
                 <a
                   href="#mockup"
-                  className="text-xs text-[#f97316] hover:text-[#fb923c] underline underline-offset-2 transition-colors"
+                  className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
                 >
-                  View Briefing Design Mockup
+                  Briefing Mockup
+                </a>
+                <a
+                  href="#results-mockup"
+                  className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
+                >
+                  Results Mockup
                 </a>
               </div>
             </>
