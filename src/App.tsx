@@ -10,6 +10,7 @@ import { ResultsPage } from './pages/ResultsPage.tsx';
 import { BriefingMockup } from './pages/BriefingMockup.tsx';
 import { ResultsMockup } from './pages/ResultsMockup.tsx';
 import { SpectrumComparison } from './pages/SpectrumComparison.tsx';
+import { PeerBenchmarkMockup } from './pages/PeerBenchmarkMockup.tsx';
 
 function AppRouter() {
   const { state } = useGameState();
@@ -25,6 +26,7 @@ function AppRouter() {
   if (hash === '#mockup') return <BriefingMockup />;
   if (hash === '#results-mockup') return <ResultsMockup />;
   if (hash === '#spectrum-compare') return <SpectrumComparison />;
+  if (hash === '#peer-mockup') return <PeerBenchmarkMockup />;
 
   switch (state.phase) {
     case 'welcome':

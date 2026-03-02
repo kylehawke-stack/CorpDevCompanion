@@ -157,6 +157,12 @@ export function WelcomePage() {
                 >
                   Spectrum Options
                 </a>
+                <a
+                  href="#peer-mockup"
+                  className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
+                >
+                  Peer Benchmark
+                </a>
               </div>
             </>
           ) : (
