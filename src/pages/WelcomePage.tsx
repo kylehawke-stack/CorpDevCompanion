@@ -138,7 +138,7 @@ export function WelcomePage() {
                 </ol>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-edge flex justify-center gap-4">
+              <div className="mt-4 pt-4 border-t border-edge flex justify-center gap-4 flex-wrap">
                 <a
                   href="#mockup"
                   className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
@@ -150,6 +150,12 @@ export function WelcomePage() {
                   className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
                 >
                   Results Mockup
+                </a>
+                <a
+                  href="#spectrum-compare"
+                  className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
+                >
+                  Spectrum Options
                 </a>
               </div>
             </>
