@@ -162,8 +162,8 @@ export default async function handler(req: Request, _context: Context) {
       }
 
       if (relevance === 0) continue;
-      // Skip very small companies (probably not real peers)
-      if (p.marketCap && p.marketCap < 10_000_000) continue;
+      // Skip delisted/private ($0 mkt cap) and very small companies
+      if (!p.marketCap || p.marketCap < 10_000_000) continue;
 
       scored.push({
         symbol: p.symbol,

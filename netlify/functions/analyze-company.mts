@@ -109,10 +109,10 @@ export default async function handler(req: Request, _context: Context) {
   const currentYear = now.getFullYear();
   const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
 
-  // Compute date range for SEC filings (2 years back)
-  const twoYearsAgo = new Date(now);
-  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-  const fromDate = twoYearsAgo.toISOString().split("T")[0];
+  // Compute date range for SEC filings + news (3 years back)
+  const threeYearsAgo = new Date(now);
+  threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
+  const fromDate = threeYearsAgo.toISOString().split("T")[0];
   const toDate = now.toISOString().split("T")[0];
 
   // Compute the 4 most recent completed quarters (going backwards)
@@ -143,15 +143,16 @@ export default async function handler(req: Request, _context: Context) {
   ]);
 
   // Fetch analyst data + cash flow + revenue segmentation in parallel
-  const [estimatesData, priceTargetData, cashFlowData, revenueProductData, revenueGeoData, peersCsvText, secFilingsData, maSearchData] = await Promise.all([
+  const [estimatesData, priceTargetData, cashFlowData, revenueProductData, revenueGeoData, peersCsvText, secFilingsData, maSearchData, stockNewsData] = await Promise.all([
     fmpFetch("analyst-estimates", { symbol, period: "annual", limit: "1" }, fmpKey),
     fmpFetch("price-target-consensus", { symbol }, fmpKey),
     fmpFetch("cash-flow-statement", { symbol, period: "annual", limit: "2" }, fmpKey),
     fmpFetch("revenue-product-segmentation", { symbol, period: "annual" }, fmpKey),
     fmpFetch("revenue-geographic-segments", { symbol, period: "annual" }, fmpKey),
     Promise.resolve(""), // peers resolved from hardcoded data below
-    fmpFetch("sec-filings-search/symbol", { symbol, from: fromDate, to: toDate, limit: "50" }, fmpKey),
+    fmpFetch("sec-filings-search/symbol", { symbol, from: fromDate, to: toDate, limit: "100" }, fmpKey),
     fmpFetch("mergers-acquisitions-search", { name: symbol, limit: "10" }, fmpKey),
+    fmpFetch("news/stock", { symbols: symbol, from: fromDate, to: toDate, limit: "100" }, fmpKey),
   ]);
 
   // Collect all successfully fetched transcripts (newest first)
@@ -394,15 +395,15 @@ ${topCompetitors.map((c, i) => {
   if (Array.isArray(secFilingsData) && secFilingsData.length > 0) {
     // Interesting filing types for M&A context
     const relevantTypes = new Set(["8-K", "8-K/A", "10-K", "10-K/A", "S-1", "S-4", "DEF 14A", "SC 13D", "SC TO-T"]);
-    const relevantFilings = secFilingsData.filter((f: any) => relevantTypes.has(f.type));
+    const relevantFilings = secFilingsData.filter((f: any) => relevantTypes.has(f.formType ?? f.type));
     if (relevantFilings.length > 0) {
       secFilingsSection = `
-SEC FILINGS (last 2 years — ${relevantFilings.length} material filings):
+SEC FILINGS (last 3 years — ${relevantFilings.length} material filings):
 These indicate acquisitions, divestitures, leadership changes, mergers, and other significant business events:
 ${relevantFilings.slice(0, 20).map((f: any) => {
-        const date = f.fillingDate || f.acceptedDate || "Unknown date";
-        const desc = f.description ? ` — ${f.description}` : "";
-        return `- ${date}: ${f.type}${desc}`;
+        const date = (f.filingDate || f.acceptedDate || "Unknown date").split(" ")[0];
+        const formType = f.formType ?? f.type;
+        return `- ${date}: ${formType}`;
       }).join("\n")}
 `;
     }
@@ -423,6 +424,30 @@ ${maSearchData.slice(0, 10).map((deal: any) => {
       return `- ${parts.join(" | ")}`;
     }).join("\n")}
 `;
+  }
+
+  // ── Build stock news section ──
+  let newsSection = "";
+  if (Array.isArray(stockNewsData) && stockNewsData.length > 0) {
+    // Filter to company-specific news (FMP already filters by symbol, but skip generic roundups)
+    const companyName = profile.companyName.split(" ").slice(0, 2).join(" ").toUpperCase();
+    const materialNews = stockNewsData.filter((n: any) => {
+      const title = (n.title || "").toUpperCase();
+      return title.includes(symbol.toUpperCase()) ||
+        title.includes(companyName) ||
+        (n.site || "").toLowerCase().includes("prnewswire") ||
+        (n.publisher || "").toLowerCase().includes("prnewswire");
+    });
+    if (materialNews.length > 0) {
+      newsSection = `
+NEWS & PRESS RELEASES (last 3 years — ${materialNews.length} items):
+${materialNews.slice(0, 30).map((n: any) => {
+        const date = (n.publishedDate || n.date || "").split(" ")[0];
+        const snippet = n.text ? ` — ${n.text.slice(0, 150)}` : "";
+        return `- ${date}: ${n.title}${snippet}`;
+      }).join("\n")}
+`;
+    }
   }
 
   // ── Build deterministic highlight cards 1-6 from raw FMP data ──
@@ -591,7 +616,7 @@ ${maSearchData.slice(0, 10).map((deal: any) => {
 - Employees: ${profile.fullTimeEmployees}
 - Country: ${profile.country}
 - Description: ${profile.description}
-${financialsSection}${metricsSection}${segmentationSection}${analystSection}${competitiveLandscapeSection}${secFilingsSection}${maSection}${transcriptSection}`;
+${financialsSection}${metricsSection}${segmentationSection}${analystSection}${competitiveLandscapeSection}${secFilingsSection}${maSection}${newsSection}${transcriptSection}`;
 
   return new Response(
     JSON.stringify({
