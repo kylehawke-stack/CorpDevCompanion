@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
 import { computeRankings } from '../lib/bradleyTerry.ts';
 import { generateSeedIdeas, generateCompanyIdeas } from '../lib/api.ts';
+import { syncIdeas, syncPhaseChange } from '../lib/supabaseSync.ts';
+import { getOrCreateVoterId } from '../lib/voterId.ts';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import { Badge } from '../components/ui/Badge.tsx';
 import { SpectrumResults } from '../components/dashboard/SpectrumResults.tsx';
@@ -12,6 +14,8 @@ export function TransitionPage() {
   const [error, setError] = useState<string | null>(null);
 
   const isTransition1 = state.phase === 'transition1';
+  const isCollaborative = !!state.isCollaborative;
+  const isAdmin = !isCollaborative || state.adminVoterId === getOrCreateVoterId();
 
   // Filter ideas relevant to this transition
   const filteredIdeas = useMemo(() => {
@@ -42,14 +46,20 @@ export function TransitionPage() {
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
+    // In collaborative mode, only the admin generates ideas.
+    // Non-admins wait for ideas to arrive via Realtime.
+    if (isCollaborative && !isAdmin) {
+      setLoading(true);
+      return;
+    }
+
+    const abortController = new AbortController();
     setLoading(true);
     setError(null);
 
     async function fetchIdeas() {
       try {
         if (isTransition1) {
-          // Transition 1: generate seed segment/category ideas from strategic priorities
           const segmentIdeas = await generateSeedIdeas(
             state.companyProfile!,
             topStrategicPriorities,
@@ -58,30 +68,40 @@ export function TransitionPage() {
             state.promptData,
             state.competitorPromptData
           );
-          if (cancelled) return;
+          if (abortController.signal.aborted) return;
           dispatch({ type: 'START_STEP2', segmentIdeas });
+          // Sync ideas and phase to Supabase
+          if (state.sessionId) {
+            await syncIdeas(segmentIdeas, state.sessionId);
+            await syncPhaseChange(state.sessionId, 'voting_step2');
+          }
         } else {
-          // Transition 2: generate company ideas from segment/category rankings
           const companyIdeas = await generateCompanyIdeas(
             rankings,
             state.strategicContext,
             topStrategicPriorities,
             state.competitorProfiles,
             state.promptData,
-            state.competitorPromptData
+            state.competitorPromptData,
+            abortController.signal
           );
-          if (cancelled) return;
+          if (abortController.signal.aborted) return;
           dispatch({ type: 'START_STEP3', companyIdeas });
+          // Sync ideas and phase to Supabase
+          if (state.sessionId) {
+            await syncIdeas(companyIdeas, state.sessionId);
+            await syncPhaseChange(state.sessionId, 'voting_step3');
+          }
         }
       } catch (err) {
-        if (cancelled) return;
+        if (abortController.signal.aborted) return;
         setError(err instanceof Error ? err.message : 'Failed to generate ideas');
         setLoading(false);
       }
     }
 
     fetchIdeas();
-    return () => { cancelled = true; };
+    return () => { abortController.abort(); };
   }, [retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stepLabel = isTransition1 ? 'Step 1 Complete' : 'Step 2 Complete';
@@ -89,9 +109,12 @@ export function TransitionPage() {
     ? `${state.step1VoteCount} votes cast across strategic priorities`
     : `${state.step2VoteCount} votes cast across market segments and product categories`;
   const summaryTitle = isTransition1 ? 'Top Strategic Priorities' : 'Top Strategic Themes';
-  const loadingMessage = isTransition1
-    ? 'Generating market segments and product categories based on your top priorities...'
-    : 'Generating company acquisition targets based on your top themes...';
+
+  const loadingMessage = isCollaborative && !isAdmin
+    ? 'Waiting for the session admin to generate the next set of ideas...'
+    : isTransition1
+      ? 'Generating market segments and product categories based on your top priorities...'
+      : 'Generating company acquisition targets based on your top themes...';
 
   return (
     <div className="min-h-screen bg-surface-base flex items-center justify-center">
@@ -132,7 +155,7 @@ export function TransitionPage() {
               <Spinner size="lg" />
               <p className="text-sm text-body">{loadingMessage}</p>
               <p className="text-xs text-dimmed">
-                This may take 10-15 seconds
+                {isCollaborative && !isAdmin ? 'You\'ll be moved to the next step automatically' : 'This may take up to 2 minutes'}
               </p>
             </div>
           ) : error ? (

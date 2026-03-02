@@ -1,6 +1,7 @@
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
 import type { GameState, GameAction } from '../types/index.ts';
 import { saveState, loadState, clearState } from '../lib/storage.ts';
+import { useSupabaseRealtime } from '../hooks/useSupabaseRealtime.ts';
 
 const initialState: GameState = {
   sessionName: '',
@@ -144,6 +145,46 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'RESET_SESSION':
       clearState();
       return { ...initialState };
+
+    // ── Multi-user collaborative actions ──────────────────────────────
+    case 'SET_SESSION_INFO':
+      return {
+        ...state,
+        sessionId: action.sessionId,
+        shareCode: action.shareCode,
+        adminVoterId: action.adminVoterId,
+        isCollaborative: action.isCollaborative,
+      };
+    case 'LOAD_SESSION':
+      return action.state;
+    case 'REMOTE_VOTE': {
+      // Dedup: skip if this vote already exists locally
+      if (state.votes.some((v) => v.id === action.vote.id)) return state;
+      return {
+        ...state,
+        votes: [...state.votes, action.vote],
+        totalVoteCount: action.counters.totalVoteCount,
+        step1VoteCount: action.counters.step1VoteCount,
+        step2VoteCount: action.counters.step2VoteCount,
+        step3VoteCount: action.counters.step3VoteCount,
+      };
+    }
+    case 'REMOTE_IDEAS': {
+      // Dedup: only add ideas not already present
+      const existingIds = new Set(state.ideas.map((i) => i.id));
+      const newIdeas = action.ideas.filter((i) => !existingIds.has(i.id));
+      if (newIdeas.length === 0) return state;
+      return {
+        ...state,
+        ideas: [...state.ideas, ...newIdeas],
+      };
+    }
+    case 'REMOTE_SESSION_UPDATE':
+      return {
+        ...state,
+        ...action.changes,
+      };
+
     default:
       return state;
   }
@@ -168,6 +209,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       saveState(state);
     }
   }, [state]);
+
+  // Subscribe to Supabase Realtime when in a collaborative session
+  useSupabaseRealtime(state.sessionId, state.voterId, dispatch);
 
   return (
     <GameStateContext.Provider value={{ state, dispatch }}>

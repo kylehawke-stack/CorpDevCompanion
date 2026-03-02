@@ -4,7 +4,13 @@ const STORAGE_KEY = 'corpdev_companion_state';
 
 export function saveState(state: GameState): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // In collaborative mode, exclude large prompt data (loaded from Supabase on rejoin)
+    if (state.isCollaborative) {
+      const { promptData: _p, competitorPromptData: _cp, ...rest } = state;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rest));
+    } else {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
   } catch {
     console.warn('Failed to save state to localStorage');
   }
@@ -104,6 +110,11 @@ export function loadState(): GameState | null {
     // Migration: remove old Q&A fields
     delete parsed.guidedQuestions;
     delete parsed.userAnswers;
+
+    // Migration: collaborative session fields default to undefined/false
+    if (parsed.isCollaborative === undefined) {
+      parsed.isCollaborative = false;
+    }
 
     return parsed as GameState;
   } catch {

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Idea, Vote } from '../types/index.ts';
 import { useGameState } from '../context/GameStateContext.tsx';
 import { selectPair } from '../lib/pairingEngine.ts';
+import { syncVote } from '../lib/supabaseSync.ts';
 
 export function useVoting() {
   const { state, dispatch } = useGameState();
@@ -34,10 +35,14 @@ export function useVoting() {
         timestamp: Date.now(),
       };
       dispatch({ type: 'ADD_VOTE', vote });
+      // Fire-and-forget sync to Supabase in collaborative mode
+      if (state.sessionId) {
+        syncVote(vote, state.sessionId, state.phase);
+      }
       // Pick next pair after a brief pause for animation
       setTimeout(pickNextPair, 100);
     },
-    [state.voterId, dispatch, pickNextPair]
+    [state.voterId, state.sessionId, state.phase, dispatch, pickNextPair]
   );
 
   const skipPair = useCallback(() => {
@@ -51,8 +56,12 @@ export function useVoting() {
       timestamp: Date.now(),
     };
     dispatch({ type: 'ADD_VOTE', vote });
+    // Fire-and-forget sync to Supabase in collaborative mode
+    if (state.sessionId) {
+      syncVote(vote, state.sessionId, state.phase);
+    }
     setTimeout(pickNextPair, 100);
-  }, [currentPair, state.voterId, dispatch, pickNextPair]);
+  }, [currentPair, state.voterId, state.sessionId, state.phase, dispatch, pickNextPair]);
 
   return {
     currentPair,

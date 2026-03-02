@@ -492,15 +492,25 @@ ${maSearchData.slice(0, 10).map((deal: any) => {
     });
   }
 
-  // Card 4: Acquisition Firepower
+  // Card 4: Acquisition Firepower (leverage-adjusted)
   if (Array.isArray(balanceData) && balanceData.length > 0) {
     const bs = balanceData[0];
+    const nwc = (bs.totalCurrentAssets || 0) - (bs.totalCurrentLiabilities || 0);
     const cash = bs.cashAndCashEquivalents || 0;
     const fcf = Array.isArray(cashFlowData) && cashFlowData.length > 0
       ? (cashFlowData[0].operatingCashFlow || 0) - Math.abs(cashFlowData[0].capitalExpenditure || 0)
       : 0;
-    const estCapacity = Math.max(fcf * 1.5, 0);
-    const dryPowder = cash + estCapacity;
+
+    // Dynamic FCF multiplier: scale 0-3x based on D/E leverage headroom
+    const DE_CEILING = 2.0;
+    const MAX_MULT = 3.0;
+    const deRatioForFP = Array.isArray(keyMetricsData) && keyMetricsData.length > 0 && keyMetricsData[0].debtToEquity != null
+      ? keyMetricsData[0].debtToEquity
+      : (bs.totalDebt || 0) / (bs.totalStockholdersEquity || 1);
+    const headroom = Math.max(0, Math.min(1, (DE_CEILING - deRatioForFP) / DE_CEILING));
+    const fcfMult = headroom * MAX_MULT;
+    const estCapacity = Math.max(fcf * fcfMult, 0);
+    const dryPowder = Math.max(nwc, 0) + estCapacity;
 
     let obs: string;
     if (dryPowder > 500_000_000) obs = "Substantial war chest enables transformational deals. Could pursue platform acquisitions without significant leverage or equity dilution.";
@@ -511,7 +521,7 @@ ${maSearchData.slice(0, 10).map((deal: any) => {
     highlights.push({
       label: "Acquisition Firepower",
       value: formatCurrency(dryPowder),
-      detail: `${formatCurrency(cash)} cash + ${formatCurrency(estCapacity)} est. capacity`,
+      detail: `${formatCurrency(Math.max(nwc, 0))} NWC + ${formatCurrency(estCapacity)} est. capacity (${fcfMult.toFixed(1)}x FCF at ${deRatioForFP.toFixed(1)}x D/E)`,
       observation: obs,
     });
   }

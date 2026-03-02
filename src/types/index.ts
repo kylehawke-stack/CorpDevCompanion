@@ -147,34 +147,34 @@ export interface DimensionMeta {
 
 export const DIMENSION_METADATA: Record<string, DimensionMeta> = {
   'Growth Objective': {
-    description: 'What is the main strategic goal of acquisitions?',
-    leftLabel: 'Safe / incremental',
-    rightLabel: 'Bold / transformational',
+    description: 'Why are you acquiring?',
+    leftLabel: 'Defensive / incremental',
+    rightLabel: 'Transformational',
   },
   'Target Profile': {
-    description: 'What kind of company should we acquire?',
-    leftLabel: 'Safe / proven',
-    rightLabel: 'Risky / innovative',
+    description: 'What kind of company fits?',
+    leftLabel: 'Established / proven',
+    rightLabel: 'Unproven / innovative',
   },
-  'Risk Posture': {
-    description: 'How aggressive should the M&A strategy be?',
-    leftLabel: 'Cautious',
-    rightLabel: 'Bold',
+  'Deal Approach': {
+    description: 'How do you want to build the portfolio?',
+    leftLabel: 'Few big moves',
+    rightLabel: 'Many smaller deals',
   },
   'Integration': {
-    description: 'How will acquired companies fit into the portfolio?',
-    leftLabel: 'Tightest integration',
-    rightLabel: 'Most independent',
+    description: 'How tightly do you integrate?',
+    leftLabel: 'Full absorption',
+    rightLabel: 'Arm\'s length',
   },
-  'Capability Priority': {
-    description: 'What capability matters most in a target?',
-    leftLabel: 'Operational / tangible',
-    rightLabel: 'Strategic / intangible',
+  'Deal Structure': {
+    description: 'How do you structure the relationship?',
+    leftLabel: 'Full ownership',
+    rightLabel: 'Minority / partnerships',
   },
   'Strategic Proximity': {
-    description: 'How far from the core business should acquisitions venture?',
-    leftLabel: 'Closest to core',
-    rightLabel: 'Furthest from core',
+    description: 'How far from your core business?',
+    leftLabel: 'Core',
+    rightLabel: 'New territory',
   },
 };
 
@@ -218,6 +218,35 @@ export interface PeerFinancials {
   debtToEquity?: number;
   currentRatio?: number;
   employees?: number;
+  // ── New fields for Peer Benchmark redesign ──────────────────────────
+  /** From balance-sheet-statement: cashAndCashEquivalents */
+  cashAndCashEquivalents?: number;
+  cashAndCashEquivalentsFormatted?: string;
+  /** From balance-sheet-statement: totalDebt */
+  totalDebt?: number;
+  totalDebtFormatted?: string;
+  /** From key-metrics: interestCoverage */
+  interestCoverage?: number;
+  /** From key-metrics: roic (return on invested capital) */
+  roic?: number;
+  /** Computed: ebitda / revenue * 100 */
+  ebitdaMarginPct?: number;
+  /** Computed: (year0.revenue - year1.revenue) / year1.revenue * 100 */
+  revenueGrowthPct?: number;
+  /** From cashflow-statement: operatingCashFlow - capitalExpenditure */
+  freeCashFlow?: number;
+  freeCashFlowFormatted?: string;
+  /** From cashflow-statement: acquisitionsNet */
+  acquisitionsNet?: number;
+  acquisitionsNetFormatted?: string;
+  /** Computed: totalCurrentAssets - totalCurrentLiabilities */
+  netWorkingCapital?: number;
+  netWorkingCapitalFormatted?: string;
+  /** Dynamic FCF multiplier based on leverage headroom (0x at D/E ceiling, 3x at zero debt) */
+  fcfMultiplier?: number;
+  /** Computed: max(NWC, 0) + max(FCF * fcfMultiplier, 0) */
+  estimatedFirepower?: number;
+  estimatedFirepowerFormatted?: string;
 }
 
 export interface GameState {
@@ -244,6 +273,11 @@ export interface GameState {
   peerFinancials: PeerFinancials[];
   promptData?: string;
   competitorPromptData?: string;
+  // Multi-user collaborative session fields
+  sessionId?: string;
+  shareCode?: string;
+  adminVoterId?: string;
+  isCollaborative?: boolean;
 }
 
 export type GameAction =
@@ -262,4 +296,10 @@ export type GameAction =
   | { type: 'SET_AVAILABLE_PEERS'; peers: PeerCompany[]; promptData: string }
   | { type: 'SELECT_PEERS'; symbols: string[] }
   | { type: 'SET_PEER_FINANCIALS'; peerFinancials: PeerFinancials[]; competitorPromptData?: string }
-  | { type: 'RESET_SESSION' };
+  | { type: 'RESET_SESSION' }
+  // Multi-user collaborative actions
+  | { type: 'SET_SESSION_INFO'; sessionId: string; shareCode: string; adminVoterId: string; isCollaborative: boolean }
+  | { type: 'LOAD_SESSION'; state: GameState }
+  | { type: 'REMOTE_VOTE'; vote: Vote; counters: { totalVoteCount: number; step1VoteCount: number; step2VoteCount: number; step3VoteCount: number } }
+  | { type: 'REMOTE_IDEAS'; ideas: Idea[] }
+  | { type: 'REMOTE_SESSION_UPDATE'; changes: Partial<GameState> };

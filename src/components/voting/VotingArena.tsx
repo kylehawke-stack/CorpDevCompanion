@@ -6,6 +6,8 @@ import { Button } from '../ui/Button.tsx';
 import { useVoting } from '../../hooks/useVoting.ts';
 import { useIdeaInjection } from '../../hooks/useIdeaInjection.ts';
 import { useGameState } from '../../context/GameStateContext.tsx';
+import { syncPhaseChange, updateSessionField } from '../../lib/supabaseSync.ts';
+import { getOrCreateVoterId } from '../../lib/voterId.ts';
 
 interface VotingArenaProps {
   onViewResults: () => void;
@@ -20,6 +22,9 @@ export function VotingArena({ onViewResults }: VotingArenaProps) {
   const { state, dispatch } = useGameState();
   const [showDirectionModal, setShowDirectionModal] = useState(false);
   const [directionText, setDirectionText] = useState('');
+
+  const isCollaborative = !!state.isCollaborative;
+  const isAdmin = !isCollaborative || state.adminVoterId === getOrCreateVoterId();
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -50,8 +55,11 @@ export function VotingArena({ onViewResults }: VotingArenaProps) {
       !state.step2Unlocked
     ) {
       dispatch({ type: 'UNLOCK_STEP2' });
+      if (state.sessionId) {
+        updateSessionField(state.sessionId, { step2_unlocked: true });
+      }
     }
-  }, [state.phase, state.step1VoteCount, state.step2Unlocked, dispatch]);
+  }, [state.phase, state.step1VoteCount, state.step2Unlocked, state.sessionId, dispatch]);
 
   // Auto-unlock step 3 when threshold reached
   useEffect(() => {
@@ -61,15 +69,24 @@ export function VotingArena({ onViewResults }: VotingArenaProps) {
       !state.step3Unlocked
     ) {
       dispatch({ type: 'UNLOCK_STEP3' });
+      if (state.sessionId) {
+        updateSessionField(state.sessionId, { step3_unlocked: true });
+      }
     }
-  }, [state.phase, state.step2VoteCount, state.step3Unlocked, dispatch]);
+  }, [state.phase, state.step2VoteCount, state.step3Unlocked, state.sessionId, dispatch]);
 
   const handleProceedToStep2 = () => {
     dispatch({ type: 'SET_PHASE', phase: 'transition1' });
+    if (state.sessionId) {
+      syncPhaseChange(state.sessionId, 'transition1');
+    }
   };
 
   const handleProceedToStep3 = () => {
     dispatch({ type: 'SET_PHASE', phase: 'transition2' });
+    if (state.sessionId) {
+      syncPhaseChange(state.sessionId, 'transition2');
+    }
   };
 
   const handleSubmitDirection = () => {
@@ -200,16 +217,24 @@ export function VotingArena({ onViewResults }: VotingArenaProps) {
 
           {/* Step 1: show proceed button when unlocked */}
           {state.phase === 'voting_step1' && state.step2Unlocked && (
-            <Button onClick={handleProceedToStep2}>
-              Proceed to Market Segments
-            </Button>
+            isAdmin ? (
+              <Button onClick={handleProceedToStep2}>
+                Proceed to Market Segments
+              </Button>
+            ) : isCollaborative ? (
+              <span className="text-xs text-muted italic">Waiting for admin to advance...</span>
+            ) : null
           )}
 
           {/* Step 2: show proceed button when unlocked */}
           {state.phase === 'voting_step2' && state.step3Unlocked && (
-            <Button onClick={handleProceedToStep3}>
-              Proceed to Company Voting
-            </Button>
+            isAdmin ? (
+              <Button onClick={handleProceedToStep3}>
+                Proceed to Company Voting
+              </Button>
+            ) : isCollaborative ? (
+              <span className="text-xs text-muted italic">Waiting for admin to advance...</span>
+            ) : null
           )}
 
           {/* View results */}

@@ -24,6 +24,36 @@ interface PeerFinancials {
   debtToEquity?: number;
   currentRatio?: number;
   employees?: number;
+  cashAndCashEquivalents?: number;
+  cashAndCashEquivalentsFormatted?: string;
+  totalDebt?: number;
+  totalDebtFormatted?: string;
+  interestCoverage?: number;
+  roic?: number;
+  ebitdaMarginPct?: number;
+  revenueGrowthPct?: number;
+  freeCashFlow?: number;
+  freeCashFlowFormatted?: string;
+  acquisitionsNet?: number;
+  acquisitionsNetFormatted?: string;
+  netWorkingCapital?: number;
+  netWorkingCapitalFormatted?: string;
+  fcfMultiplier?: number;
+  estimatedFirepower?: number;
+  estimatedFirepowerFormatted?: string;
+}
+
+// ── Leverage-adjusted FCF multiplier ────────────────────────────────
+// Scale from 0x (at D/E ceiling) to 3x (at zero debt).
+// A typical moderately-leveraged company (D/E ≈ 1.0) gets ~1.5x,
+// matching the old hardcoded value as a sanity check.
+const DE_CEILING = 2.0;      // max D/E — beyond this, no borrowing capacity
+const MAX_FCF_MULTIPLIER = 3; // years of FCF an unleveraged company could finance
+
+function computeFcfMultiplier(debtToEquity: number | undefined | null): number {
+  if (debtToEquity == null || debtToEquity < 0) return MAX_FCF_MULTIPLIER;
+  const headroom = Math.max(0, Math.min(1, (DE_CEILING - debtToEquity) / DE_CEILING));
+  return headroom * MAX_FCF_MULTIPLIER;
 }
 
 function formatCurrency(val: number): string {
@@ -216,20 +246,24 @@ export default async function handler(req: Request, _context: Context) {
           revenueProductData,
           transcriptData,
           pressReleasesData,
+          cashflowData,
         ] = await Promise.all([
           fmpFetch("profile", { symbol }, fmpKey),
-          fmpFetch("income-statement", { symbol, period: "annual", limit: "1" }, fmpKey),
+          fmpFetch("income-statement", { symbol, period: "annual", limit: "2" }, fmpKey),
           fmpFetch("balance-sheet-statement", { symbol, period: "annual", limit: "1" }, fmpKey),
           fmpFetch("key-metrics", { symbol, period: "annual", limit: "1" }, fmpKey),
           fmpFetch("revenue-product-segmentation", { symbol, period: "annual" }, fmpKey),
           fmpFetch("earning-call-transcript", { symbol, year: String(tYear), quarter: String(tQuarter) }, fmpKey),
           fmpFetch("news/press-releases", { symbols: symbol, limit: "5" }, fmpKey),
+          fmpFetch("cash-flow-statement", { symbol, period: "annual", limit: "1" }, fmpKey),
         ]);
 
         const profile = Array.isArray(profileData) && profileData.length > 0 ? profileData[0] : null;
         const income = Array.isArray(incomeData) && incomeData.length > 0 ? incomeData[0] : null;
+        const incomePrior = Array.isArray(incomeData) && incomeData.length > 1 ? incomeData[1] : null;
         const balance = Array.isArray(balanceData) && balanceData.length > 0 ? balanceData[0] : null;
         const keyMetrics = Array.isArray(keyMetricsData) && keyMetricsData.length > 0 ? keyMetricsData[0] : null;
+        const cashflow = Array.isArray(cashflowData) && cashflowData.length > 0 ? cashflowData[0] : null;
 
         if (!profile || !income) return null;
 
@@ -245,6 +279,49 @@ export default async function handler(req: Request, _context: Context) {
 
         const operatingIncome = income.operatingIncome ?? 0;
         const ebitda = income.ebitda ?? 0;
+
+        // ── New fields: extract from already-fetched data ─────────────
+        // Balance sheet: cash & debt
+        const cash = balance?.cashAndCashEquivalents ?? undefined;
+        const debt = balance?.totalDebt ?? undefined;
+
+        // Net working capital: totalCurrentAssets - totalCurrentLiabilities
+        const currentAssets = balance?.totalCurrentAssets;
+        const currentLiabilities = balance?.totalCurrentLiabilities;
+        const nwc = currentAssets != null && currentLiabilities != null
+          ? currentAssets - currentLiabilities
+          : undefined;
+
+        // Key metrics: interest coverage & ROIC
+        const interestCoverage = keyMetrics?.interestCoverage || undefined;
+        const roic = keyMetrics?.roic != null ? keyMetrics.roic * 100 : undefined;
+
+        // Computed: EBITDA margin
+        const ebitdaMarginPct = revenue > 0 && ebitda ? (ebitda / revenue) * 100 : undefined;
+
+        // Revenue growth (requires 2 years of income data)
+        const priorRevenue = incomePrior?.revenue;
+        const revenueGrowthPct = priorRevenue && priorRevenue > 0
+          ? ((revenue - priorRevenue) / priorRevenue) * 100
+          : undefined;
+
+        // Cashflow statement: FCF & acquisitions
+        const operatingCashFlow = cashflow?.operatingCashFlow ?? 0;
+        const capitalExpenditure = cashflow?.capitalExpenditure ?? 0;
+        const fcf = cashflow ? operatingCashFlow - capitalExpenditure : undefined;
+        const acquisitionsNet = cashflow?.acquisitionsNet ?? undefined;
+
+        // Dynamic leverage-adjusted firepower
+        // Uses NWC instead of cash, and a D/E-driven FCF multiplier instead of hardcoded 1.5x
+        const deRatio = keyMetrics?.debtToEquity ?? (
+          debt != null && balance?.totalStockholdersEquity
+            ? debt / balance.totalStockholdersEquity
+            : undefined
+        );
+        const fcfMult = computeFcfMultiplier(deRatio);
+        const estimatedFirepower = nwc != null && fcf != null
+          ? Math.max(nwc, 0) + Math.max(fcf * fcfMult, 0)
+          : undefined;
 
         return {
           financials: {
@@ -270,6 +347,24 @@ export default async function handler(req: Request, _context: Context) {
             debtToEquity: keyMetrics?.debtToEquity || undefined,
             currentRatio: keyMetrics?.currentRatio || undefined,
             employees: profile.fullTimeEmployees ? Number(profile.fullTimeEmployees) : undefined,
+            // New fields
+            cashAndCashEquivalents: cash,
+            cashAndCashEquivalentsFormatted: cash != null ? formatCurrency(cash) : undefined,
+            totalDebt: debt,
+            totalDebtFormatted: debt != null ? formatCurrency(debt) : undefined,
+            interestCoverage,
+            roic,
+            ebitdaMarginPct,
+            revenueGrowthPct,
+            freeCashFlow: fcf,
+            freeCashFlowFormatted: fcf != null ? formatCurrency(fcf) : undefined,
+            acquisitionsNet,
+            acquisitionsNetFormatted: acquisitionsNet != null ? formatCurrency(acquisitionsNet) : undefined,
+            netWorkingCapital: nwc,
+            netWorkingCapitalFormatted: nwc != null ? formatCurrency(nwc) : undefined,
+            fcfMultiplier: fcf != null ? Math.round(fcfMult * 10) / 10 : undefined,
+            estimatedFirepower,
+            estimatedFirepowerFormatted: estimatedFirepower != null ? formatCurrency(estimatedFirepower) : undefined,
           } as PeerFinancials,
           contextString,
         };

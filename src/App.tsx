@@ -11,9 +11,13 @@ import { BriefingMockup } from './pages/BriefingMockup.tsx';
 import { ResultsMockup } from './pages/ResultsMockup.tsx';
 import { SpectrumComparison } from './pages/SpectrumComparison.tsx';
 import { PeerBenchmarkMockup } from './pages/PeerBenchmarkMockup.tsx';
+import { SessionBar } from './components/session/SessionBar.tsx';
+import { JoinSessionPage } from './components/session/JoinSessionPage.tsx';
+import { useSession } from './hooks/useSession.ts';
 
 function AppRouter() {
   const { state } = useGameState();
+  const { joinCode } = useSession();
   const [hash, setHash] = useState(window.location.hash);
 
   useEffect(() => {
@@ -28,27 +32,41 @@ function AppRouter() {
   if (hash === '#spectrum-compare') return <SpectrumComparison />;
   if (hash === '#peer-mockup') return <PeerBenchmarkMockup />;
 
-  switch (state.phase) {
-    case 'welcome':
-      return <WelcomePage />;
-    case 'analyzing':
-      return <WelcomePage />;
-    case 'peer_selection':
-      return <PeerSelectionPage />;
-    case 'peer_benchmarking':
-      return <PeerBenchmarkPage />;
-    case 'briefing':
-      return <BriefingPage />;
-    case 'voting_step1':
-    case 'voting_step2':
-    case 'voting_step3':
-      return <VotePage />;
-    case 'transition1':
-    case 'transition2':
-      return <TransitionPage />;
-    case 'results':
-      return <ResultsPage />;
+  // Show join page when user visits ?s=CODE and hasn't joined yet
+  if (joinCode && !state.isCollaborative) {
+    return <JoinSessionPage />;
   }
+
+  const page = (() => {
+    switch (state.phase) {
+      case 'welcome':
+        return <WelcomePage />;
+      case 'analyzing':
+        return <WelcomePage />;
+      case 'peer_selection':
+        return <PeerSelectionPage />;
+      case 'peer_benchmarking':
+        return <PeerBenchmarkPage />;
+      case 'briefing':
+        return <BriefingPage />;
+      case 'voting_step1':
+      case 'voting_step2':
+      case 'voting_step3':
+        return <VotePage />;
+      case 'transition1':
+      case 'transition2':
+        return <TransitionPage />;
+      case 'results':
+        return <ResultsPage />;
+    }
+  })();
+
+  return (
+    <>
+      <SessionBar />
+      {page}
+    </>
+  );
 }
 
 export default function App() {

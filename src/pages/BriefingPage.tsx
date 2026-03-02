@@ -1,6 +1,10 @@
+import { useState } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
 import { Button } from '../components/ui/Button.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
+import { CreateSessionModal } from '../components/session/CreateSessionModal.tsx';
+import { supabase } from '../lib/supabase.ts';
+import type { FinancialHighlight } from '../types/index.ts';
 
 function formatRevenue(val: number): string {
   if (val >= 1e9) return `$${(val / 1e9).toFixed(1)}B`;
@@ -83,6 +87,104 @@ function InsightObservation({ text }: { text: string }) {
   );
 }
 
+/** Carousel for multi-card insight categories (Earnings Call Insights, Analyst Perspectives) */
+function InsightCarousel({ cards }: { cards: FinancialHighlight[] }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Single-card fallback: no carousel chrome
+  if (cards.length <= 1) {
+    const h = cards[0];
+    return (
+      <div className="bg-surface-card rounded-xl border border-edge shadow-sm p-6 hover:shadow-md transition-shadow">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-medium text-muted uppercase tracking-wider">
+            {h.label}
+          </p>
+          <StyledText text={h.detail} className="text-xs text-dimmed" />
+        </div>
+        <p className="text-lg font-semibold text-heading mb-3">{h.value}</p>
+        <InsightObservation text={h.observation} />
+      </div>
+    );
+  }
+
+  const card = cards[activeIndex];
+  const total = cards.length;
+
+  const prev = () => setActiveIndex((activeIndex - 1 + total) % total);
+  const next = () => setActiveIndex((activeIndex + 1) % total);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+  };
+
+  return (
+    <div
+      className="bg-surface-card rounded-xl border border-edge shadow-sm p-6 hover:shadow-md transition-shadow"
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-medium text-muted uppercase tracking-wider">
+            {card.label}
+          </p>
+          <span className="text-xs font-mono text-dimmed bg-surface-elevated px-1.5 py-0.5 rounded">
+            {activeIndex + 1}/{total}
+          </span>
+        </div>
+        <StyledText text={card.detail} className="text-xs text-dimmed" />
+      </div>
+
+      {/* Content area with min height to prevent layout shift */}
+      <div className="min-h-[120px]">
+        <p className="text-lg font-semibold text-heading mb-3">{card.value}</p>
+        <InsightObservation text={card.observation} />
+      </div>
+
+      {/* Navigation: arrows + dots */}
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-edge/50">
+        <button
+          onClick={prev}
+          className="p-1.5 rounded-lg hover:bg-surface-elevated text-muted hover:text-heading transition-colors"
+          aria-label="Previous insight"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        <div className="flex items-center gap-1.5">
+          {cards.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setActiveIndex(i)}
+              className={`rounded-full transition-all ${
+                i === activeIndex
+                  ? 'w-2.5 h-2.5 bg-accent'
+                  : 'w-2 h-2 bg-edge hover:bg-muted'
+              }`}
+              aria-label={`Go to insight ${i + 1}`}
+            />
+          ))}
+        </div>
+
+        <button
+          onClick={next}
+          className="p-1.5 rounded-lg hover:bg-surface-elevated text-muted hover:text-heading transition-colors"
+          aria-label="Next insight"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Segment bar colors
 const SEGMENT_COLORS = [
   'bg-accent',
@@ -98,6 +200,7 @@ export function BriefingPage() {
   const highlights = state.financialHighlights;
   const segments = state.revenueSegments;
   const profile = state.companyProfile;
+  const [showCreateSession, setShowCreateSession] = useState(false);
 
   const hasPeerData = state.peerFinancials.length > 0;
 
@@ -232,24 +335,36 @@ export function BriefingPage() {
           </div>
         )}
 
-        {/* Qualitative Insight Cards — full-width, structured layout */}
+        {/* Qualitative Insight Cards — carousel for multi-card categories, single card for others */}
         {insightCards.length > 0 ? (
           <div className="space-y-4 mb-10">
-            {insightCards.map((h, i) => (
-              <div
-                key={i}
-                className="bg-surface-card rounded-xl border border-edge shadow-sm p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-medium text-muted uppercase tracking-wider">
-                    {h.label}
-                  </p>
-                  <StyledText text={h.detail} className="text-xs text-dimmed" />
+            {insightLabels.map((label) => {
+              const group = insightCards.filter(h => h.label === label);
+              if (group.length === 0) return null;
+
+              // Carousel categories get the carousel component
+              if (label === 'Earnings Call Insights' || label === 'Analyst Perspectives') {
+                return <InsightCarousel key={label} cards={group} />;
+              }
+
+              // Single-card categories render as before
+              const h = group[0];
+              return (
+                <div
+                  key={label}
+                  className="bg-surface-card rounded-xl border border-edge shadow-sm p-6 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-medium text-muted uppercase tracking-wider">
+                      {h.label}
+                    </p>
+                    <StyledText text={h.detail} className="text-xs text-dimmed" />
+                  </div>
+                  <p className="text-lg font-semibold text-heading mb-3">{h.value}</p>
+                  <InsightObservation text={h.observation} />
                 </div>
-                <p className="text-lg font-semibold text-heading mb-3">{h.value}</p>
-                <InsightObservation text={h.observation} />
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : state.ideas.length === 0 ? (
           <div className="bg-surface-card rounded-xl border border-edge shadow-sm p-8 mb-10 text-center">
@@ -259,8 +374,26 @@ export function BriefingPage() {
           </div>
         ) : null}
 
-        {/* Begin Voting Button */}
+        {/* Go Live / Begin Voting Buttons */}
         <div className="text-center pt-2 pb-4">
+          {/* Show "Go Live" button when Supabase is configured and not yet collaborative */}
+          {supabase && !state.isCollaborative && state.ideas.length > 0 && (
+            <div className="mb-4">
+              <button
+                onClick={() => setShowCreateSession(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border-2 border-accent/30 text-accent hover:bg-accent/5 hover:border-accent/50 transition-colors text-sm font-medium"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Go Live — Invite others to vote
+              </button>
+              <p className="text-xs text-dimmed mt-1.5">
+                Create a shared session so your team can vote together in real time
+              </p>
+            </div>
+          )}
+
           <Button onClick={handleContinue} size="lg" className="px-10" disabled={state.ideas.length === 0}>
             {state.ideas.length === 0 ? 'Generating strategic options...' : hasPeerData ? 'Continue to Peer Benchmarking' : 'Begin Strategic Prioritization'}
           </Button>
@@ -270,6 +403,11 @@ export function BriefingPage() {
             </p>
           )}
         </div>
+
+        {/* Create Session Modal */}
+        {showCreateSession && (
+          <CreateSessionModal onClose={() => setShowCreateSession(false)} />
+        )}
       </div>
     </div>
   );
