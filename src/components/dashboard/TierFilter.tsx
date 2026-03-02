@@ -7,12 +7,12 @@ interface TierFilterProps {
   onChange: (filter: FilterOption) => void;
 }
 
-const options: { value: FilterOption; label: string; activeColor: string }[] = [
-  { value: 'all', label: 'All Tiers', activeColor: 'bg-surface-hover text-heading border-edge-light' },
-  { value: 'strategic_priority', label: 'Strategic Priorities', activeColor: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
-  { value: 'market_segment', label: 'Market Segments', activeColor: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' },
-  { value: 'product_category', label: 'Product Categories', activeColor: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
-  { value: 'specific_company', label: 'Specific Companies', activeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+const options: { value: FilterOption; label: string }[] = [
+  { value: 'all', label: 'All Tiers' },
+  { value: 'strategic_priority', label: 'Strategic Priorities' },
+  { value: 'market_segment', label: 'Market Segments' },
+  { value: 'product_category', label: 'Product Categories' },
+  { value: 'specific_company', label: 'Specific Companies' },
 ];
 
 export function TierFilter({ selected, onChange }: TierFilterProps) {
@@ -24,8 +24,8 @@ export function TierFilter({ selected, onChange }: TierFilterProps) {
           onClick={() => onChange(opt.value)}
           className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
             selected === opt.value
-              ? `${opt.activeColor} ring-2 ring-offset-1 ring-offset-surface-base ring-accent`
-              : 'bg-surface-elevated text-muted border-edge hover:bg-surface-hover'
+              ? 'bg-[#f97316]/15 text-[#f97316] border-[#f97316]/30'
+              : 'bg-[#1e293b] text-[#94a3b8] border-[#2a3a4e] hover:border-[#475569]'
           }`}
         >
           {opt.label}

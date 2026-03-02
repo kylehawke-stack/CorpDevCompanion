@@ -1,6 +1,10 @@
 import { useGameState } from '../context/GameStateContext.tsx';
 import { Button } from '../components/ui/Button.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
+import { BRIEFING_CARD_GROUPS } from '../types/index.ts';
+import type { FinancialHighlight } from '../types/index.ts';
+
+// ── Formatters ──
 
 function formatRevenue(val: number): string {
   if (val >= 1e9) return `$${(val / 1e9).toFixed(1)}B`;
@@ -9,18 +13,14 @@ function formatRevenue(val: number): string {
   return `$${val.toFixed(0)}`;
 }
 
-/**
- * Render text with negative values (in parentheses) highlighted in red.
- * Matches patterns like (7.3%), ($5M), (0.8x), etc.
- */
+/** Highlight negative values (in parentheses) in red */
 function StyledText({ text, className = '' }: { text: string; className?: string }) {
   const parts = text.split(/(\([^)]*\))/g);
   return (
     <span className={className}>
       {parts.map((part, i) => {
-        // Check if this is a parenthesized value that looks negative (contains a number)
         if (part.startsWith('(') && part.endsWith(')') && /\d/.test(part)) {
-          return <span key={i} className="text-negative font-semibold">{part}</span>;
+          return <span key={i} className="text-red-400 font-semibold">{part}</span>;
         }
         return <span key={i}>{part}</span>;
       })}
@@ -29,149 +29,131 @@ function StyledText({ text, className = '' }: { text: string; className?: string
 }
 
 /**
- * Render insight observation text, pulling out attributed quotes as styled blockquotes.
- * Matches patterns like: As CEO Scott Tidey noted: "quote text"
- * or: Analyst Adam Bradley asked: "quote text"
+ * Extract a quote + attribution from observation text.
+ * Matches: As CEO Scott Tidey noted: "quote text"
  */
-function InsightObservation({ text }: { text: string }) {
-  // Split text around quoted strings with attribution
-  const quotePattern = /((?:As\s+)?(?:CEO|CFO|Analyst|analyst|President|SVP|VP|COO)\s+[^:""]+(?:noted|said|stated|asked|observed|commented|probed|remarked|explained|highlighted|mentioned|emphasized):\s*[""]([^""]+)[""])/gi;
+function extractQuote(observation: string): { text: string; speaker: string; surrounding: string } | null {
+  const regex = /((?:As\s+)?(?:CEO|CFO|Analyst|analyst|President|SVP|VP|COO)\s+[^:"\u201c]+)(?:noted|said|stated|asked|observed|commented|probed|remarked|explained|highlighted|mentioned|emphasized):\s*["\u201c]([^"\u201d]+)["\u201d]/i;
+  const match = observation.match(regex);
+  if (!match) return null;
 
-  const parts: { type: 'text' | 'quote'; content: string; attribution?: string }[] = [];
-  let lastIndex = 0;
-  let match;
+  const speaker = match[1].replace(/^As\s+/i, '').trim();
+  const text = match[2].trim();
+  const quoteStart = observation.indexOf(match[0]);
+  const surrounding = observation.slice(0, quoteStart).trim();
 
-  const regex = new RegExp(quotePattern);
-  while ((match = regex.exec(text)) !== null) {
-    // Text before the quote
-    if (match.index > lastIndex) {
-      parts.push({ type: 'text', content: text.slice(lastIndex, match.index) });
-    }
-    // Extract attribution and quote
-    const fullMatch = match[0];
-    const quoteStart = fullMatch.indexOf('\u201c') !== -1 ? fullMatch.indexOf('\u201c') : fullMatch.indexOf('"');
-    const attribution = fullMatch.slice(0, quoteStart).replace(/:\s*$/, '').trim();
-    const quoteText = match[2] || fullMatch.slice(quoteStart + 1, -1);
-    parts.push({ type: 'quote', content: quoteText, attribution });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push({ type: 'text', content: text.slice(lastIndex) });
-  }
-
-  // If no quotes found, render as plain styled text
-  if (parts.length === 0 || (parts.length === 1 && parts[0].type === 'text')) {
-    return <StyledText text={text} className="text-sm text-body leading-relaxed block" />;
-  }
-
-  return (
-    <div className="space-y-2">
-      {parts.map((part, i) =>
-        part.type === 'quote' ? (
-          <blockquote key={i} className="border-l-3 border-accent pl-4 py-1 my-2 bg-surface-elevated rounded-r-lg">
-            <p className="text-sm text-body italic leading-relaxed">"{part.content}"</p>
-            {part.attribution && (
-              <p className="text-xs text-muted mt-1">— {part.attribution}</p>
-            )}
-          </blockquote>
-        ) : (
-          <StyledText key={i} text={part.content} className="text-sm text-body leading-relaxed" />
-        )
-      )}
-    </div>
-  );
+  return { text, speaker, surrounding };
 }
 
-// Segment bar colors
-const SEGMENT_COLORS = [
-  'bg-accent',
-  'bg-indigo-500',
-  'bg-emerald-500',
-  'bg-amber-500',
-  'bg-rose-500',
-  'bg-violet-500',
-];
+// ── Segment bar colors ──
+
+const SEGMENT_COLORS = ['bg-[#f97316]', 'bg-indigo-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-violet-500'];
+
+// ── Main Page ──
 
 export function BriefingPage() {
   const { state, dispatch } = useGameState();
   const highlights = state.financialHighlights;
   const segments = state.revenueSegments;
   const profile = state.companyProfile;
-
   const hasPeerData = state.peerFinancials.length > 0;
 
   const handleContinue = () => {
     dispatch({ type: 'SET_PHASE', phase: hasPeerData ? 'peer_benchmarking' : 'voting_step1' });
   };
 
-  // Split AI highlights into: first row (before revenue mix), second row (after), then insights
-  const firstRowLabels = ['Revenue & Growth'];
-  const secondRowLabels = ['Profitability', 'Cash Flow & Firepower', 'Acquisition Firepower', 'Leverage & Capacity'];
-  const insightLabels = ['Acquisitiveness', 'Earnings Call Insights', 'Analyst Perspectives', 'Competitive Positioning'];
+  // Derive card groups from the shared contract
+  const kpiHighlights = BRIEFING_CARD_GROUPS.kpiLabels
+    .map(label => highlights.find(h => h.label === label))
+    .filter(Boolean) as FinancialHighlight[];
 
-  const firstRowCards = highlights.filter(h => firstRowLabels.includes(h.label));
-  const secondRowCards = highlights.filter(h => secondRowLabels.includes(h.label));
-  const insightCards = highlights.filter(h => insightLabels.includes(h.label));
+  const narrativeHighlights = BRIEFING_CARD_GROUPS.narrativeLabels
+    .map(label => highlights.find(h => h.label === label))
+    .filter(Boolean) as FinancialHighlight[];
 
-  // Fallback: if Claude still returns "Balance Sheet" as a single card
-  const balanceSheetFallback = highlights.find(h => h.label === 'Balance Sheet');
-  if (balanceSheetFallback && !secondRowCards.some(h => h.label === 'Acquisition Firepower')) {
-    secondRowCards.push(balanceSheetFallback);
-  }
+  const pullquoteHighlights = BRIEFING_CARD_GROUPS.pullquoteLabels
+    .map(label => highlights.find(h => h.label === label))
+    .filter(Boolean) as FinancialHighlight[];
+
+  // Any remaining cards not captured above (fallback for older data shapes)
+  const usedLabels = new Set([
+    ...BRIEFING_CARD_GROUPS.kpiLabels,
+    ...BRIEFING_CARD_GROUPS.narrativeLabels,
+    ...BRIEFING_CARD_GROUPS.pullquoteLabels,
+  ]);
+  const extraHighlights = highlights.filter(h => !usedLabels.has(h.label));
 
   return (
-    <div className="min-h-screen bg-surface-base py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          {profile && (
-            <div className="inline-flex items-center gap-3 mb-4">
-              <img src={profile.image} alt="" className="w-10 h-10 rounded object-contain bg-white p-0.5" />
-              <div className="text-left">
-                <p className="font-semibold text-heading">{profile.companyName}</p>
-                <p className="text-xs text-muted">{profile.sector} &middot; {profile.industry}</p>
-              </div>
-            </div>
-          )}
-          <h1 className="text-2xl font-bold text-heading tracking-tight">
-            Intelligence Briefing
-          </h1>
-          <p className="text-sm text-muted mt-1">
-            Key findings from 2 years of financial statements, 4 quarterly earnings calls, analyst consensus, and competitive landscape analysis
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#0f1419] py-10 px-4">
+      <div className="max-w-7xl mx-auto">
 
-        {/* Row 1: Revenue & Growth card(s) */}
-        {firstRowCards.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            {firstRowCards.map((h, i) => (
-              <div
-                key={i}
-                className="bg-surface-card rounded-xl border border-edge shadow-sm p-5 hover:shadow-md transition-shadow"
-              >
-                <p className="text-xs font-medium text-muted uppercase tracking-wider mb-2">
-                  {h.label}
+        {/* ── Company Header ── */}
+        <header className="mb-8">
+          <div className="flex items-center gap-4 mb-3">
+            {profile?.image && (
+              <img
+                src={profile.image}
+                alt=""
+                className="w-12 h-12 rounded-lg object-contain bg-white/10 p-1 border border-[#2a3a4e]"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            )}
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-[#e2e8f0] tracking-tight">
+                  {profile?.companyName || 'Company'}
+                </h1>
+                {profile?.symbol && (
+                  <span className="font-mono text-sm text-[#64748b] bg-[#1a2332] px-2 py-0.5 rounded border border-[#2a3a4e]">
+                    {profile.symbol}
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-[#64748b] mt-0.5">
+                {[profile?.sector, profile?.industry, profile?.ceo ? `CEO: ${profile.ceo}` : null].filter(Boolean).join(' \u00B7 ')}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316]">
+              Intelligence Briefing
+            </span>
+            <span className="text-[#2a3a4e]">/</span>
+            <span className="text-xs text-[#64748b]">
+              2 years of financials, 4 quarterly earnings calls, analyst consensus, competitive landscape
+            </span>
+          </div>
+        </header>
+
+        {/* ── KPI Strip ── */}
+        {kpiHighlights.length > 0 && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            {kpiHighlights.map((h) => (
+              <div key={h.label} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl px-5 py-4">
+                <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-2">
+                  {h.label === 'Acquisition Firepower' ? 'Firepower' : h.label.split(' &')[0]}
                 </p>
-                <div className="flex items-baseline gap-2 mb-1">
-                  <StyledText text={h.value} className="text-2xl font-bold text-heading" />
-                  <StyledText text={h.detail} className="text-sm text-muted" />
-                </div>
-                <StyledText text={h.observation} className="text-sm text-body leading-snug mt-2 block" />
+                <p className="font-mono text-2xl font-bold text-white leading-none">
+                  <StyledText text={h.value} />
+                </p>
+                <p className="text-xs text-[#64748b] mt-1.5 font-mono">
+                  <StyledText text={h.detail} />
+                </p>
               </div>
             ))}
           </div>
         )}
 
-        {/* Revenue Mix Card — structured table from real data (position 2) */}
+        {/* ── Revenue Mix ── */}
         {segments.length > 0 && (
-          <div className="bg-surface-card rounded-xl border border-edge shadow-sm p-6 mb-4 hover:shadow-md transition-shadow">
-            <p className="text-xs font-medium text-muted uppercase tracking-wider mb-4">
-              Revenue Mix by Product Segment
-            </p>
-
-            {/* Stacked bar */}
-            <div className="flex rounded-full overflow-hidden h-4 mb-4">
+          <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316]">
+                Revenue Mix
+              </p>
+              <span className="text-xs text-[#64748b]">by product segment</span>
+            </div>
+            <div className="flex rounded-full overflow-hidden h-3 mb-4">
               {segments.map((s, i) => (
                 <div
                   key={s.name}
@@ -181,91 +163,114 @@ export function BriefingPage() {
                 />
               ))}
             </div>
-
-            {/* Table */}
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-edge">
-                  <th className="text-left py-2 font-medium text-muted">Segment</th>
-                  <th className="text-right py-2 font-medium text-muted">Revenue</th>
-                  <th className="text-right py-2 font-medium text-muted w-20">Share</th>
-                </tr>
-              </thead>
-              <tbody>
-                {segments.map((s, i) => (
-                  <tr key={s.name} className="border-b border-edge/50">
-                    <td className="py-2 flex items-center gap-2">
-                      <span className={`w-3 h-3 rounded-sm ${SEGMENT_COLORS[i % SEGMENT_COLORS.length]}`} />
-                      <span className="text-heading">{s.name}</span>
-                    </td>
-                    <td className="py-2 text-right font-mono text-body">
-                      {formatRevenue(s.revenue)}
-                    </td>
-                    <td className="py-2 text-right font-mono font-semibold text-accent">
-                      {s.percent}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              {segments.map((s, i) => (
+                <div key={s.name} className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-sm ${SEGMENT_COLORS[i % SEGMENT_COLORS.length]}`} />
+                  <span className="text-sm text-[#e2e8f0]">{s.name}</span>
+                  <span className="font-mono text-sm text-[#64748b]">{formatRevenue(s.revenue)}</span>
+                  <span className="font-mono text-sm font-semibold text-[#f97316]">{s.percent}%</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Row 2: Profitability, Cash Flow, Acquisition Firepower, Leverage */}
-        {secondRowCards.length > 0 && (
-          <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 mb-4">
-            {secondRowCards.map((h, i) => (
-              <div
-                key={i}
-                className="bg-surface-card rounded-xl border border-edge shadow-sm p-5 hover:shadow-md transition-shadow"
-              >
-                <p className="text-xs font-medium text-muted uppercase tracking-wider mb-2">
+        {/* ── Narrative Analysis Cards (2-column) ── */}
+        {narrativeHighlights.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {narrativeHighlights.map((h) => (
+              <div key={h.label} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
+                <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">
+                  {h.label}
+                </p>
+                <p className="text-sm text-[#94a3b8] leading-relaxed">
+                  <StyledText text={h.observation} />
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Extra cards (fallback for unexpected labels) ── */}
+        {extraHighlights.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {extraHighlights.map((h) => (
+              <div key={h.label} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
+                <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-2">
                   {h.label}
                 </p>
                 <div className="flex items-baseline gap-2 mb-1">
-                  <StyledText text={h.value} className="text-2xl font-bold text-heading" />
-                  <StyledText text={h.detail} className="text-sm text-muted" />
+                  <StyledText text={h.value} className="text-xl font-bold text-[#e2e8f0]" />
+                  <StyledText text={h.detail} className="text-xs text-[#64748b]" />
                 </div>
-                <StyledText text={h.observation} className="text-sm text-body leading-snug mt-2 block" />
+                <p className="text-sm text-[#94a3b8] leading-relaxed mt-2">
+                  <StyledText text={h.observation} />
+                </p>
               </div>
             ))}
           </div>
         )}
 
-        {/* Qualitative Insight Cards — full-width, structured layout */}
-        {insightCards.length > 0 ? (
-          <div className="space-y-4 mb-10">
-            {insightCards.map((h, i) => (
-              <div
-                key={i}
-                className="bg-surface-card rounded-xl border border-edge shadow-sm p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-medium text-muted uppercase tracking-wider">
-                    {h.label}
-                  </p>
-                  <StyledText text={h.detail} className="text-xs text-dimmed" />
+        {/* ── Pullquote Section (Earnings Call + Analyst) ── */}
+        {pullquoteHighlights.length > 0 ? (
+          <div className="space-y-5 mb-10">
+            {pullquoteHighlights.map((h) => {
+              const extracted = extractQuote(h.observation);
+              return (
+                <div key={h.label} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316]">
+                      {h.label}
+                    </p>
+                    <p className="text-xs text-[#64748b]">{h.detail}</p>
+                  </div>
+
+                  <p className="text-lg font-semibold text-[#e2e8f0] mb-4">{h.value}</p>
+
+                  {extracted?.surrounding && (
+                    <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+                      {extracted.surrounding}
+                    </p>
+                  )}
+
+                  {extracted ? (
+                    <blockquote className="border-l-4 border-[#f97316] pl-5 py-3 bg-[#f97316]/[0.04] rounded-r-lg">
+                      <p className="text-base text-[#e2e8f0] italic leading-relaxed">
+                        &ldquo;{extracted.text}&rdquo;
+                      </p>
+                      <p className="text-sm text-[#f97316] mt-2 font-medium not-italic">
+                        &mdash; {extracted.speaker}
+                      </p>
+                    </blockquote>
+                  ) : (
+                    <p className="text-sm text-[#94a3b8] leading-relaxed">
+                      <StyledText text={h.observation} />
+                    </p>
+                  )}
                 </div>
-                <p className="text-lg font-semibold text-heading mb-3">{h.value}</p>
-                <InsightObservation text={h.observation} />
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : state.ideas.length === 0 ? (
-          <div className="bg-surface-card rounded-xl border border-edge shadow-sm p-8 mb-10 text-center">
+          <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-8 mb-10 text-center">
             <Spinner size="lg" />
-            <p className="text-sm text-body mt-3">Generating strategic analysis...</p>
-            <p className="text-xs text-dimmed mt-1">AI is synthesizing earnings calls, analyst data, and competitive landscape</p>
+            <p className="text-sm text-[#e2e8f0] mt-3">Generating strategic analysis...</p>
+            <p className="text-xs text-[#64748b] mt-1">AI is synthesizing earnings calls, analyst data, and competitive landscape</p>
           </div>
         ) : null}
 
-        {/* Begin Voting Button */}
-        <div className="text-center pt-2 pb-4">
+        {/* ── CTA ── */}
+        <div className="text-center pt-2 pb-8">
           <Button onClick={handleContinue} size="lg" className="px-10" disabled={state.ideas.length === 0}>
-            {state.ideas.length === 0 ? 'Generating strategic options...' : hasPeerData ? 'Continue to Peer Benchmarking' : 'Begin Strategic Prioritization'}
+            {state.ideas.length === 0
+              ? 'Generating strategic options...'
+              : hasPeerData
+                ? 'Continue to Peer Benchmarking'
+                : 'Begin Strategic Prioritization'}
           </Button>
           {state.ideas.length > 0 && (
-            <p className="text-xs text-dimmed mt-3">
+            <p className="text-xs text-[#64748b] mt-3">
               {state.ideas.length} strategic options ready for pairwise comparison across 6 dimensions
             </p>
           )}
