@@ -451,7 +451,7 @@ export function PeerBenchmarkPage() {
         </div>
 
         {/* Charts: Scatter + Radar */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 gap-6 mb-8">
 
           {/* Valuation Map Scatter */}
           {scatterData.length >= 2 && target && (
@@ -511,8 +511,8 @@ export function PeerBenchmarkPage() {
           <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
             <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Financial Profile</p>
             <p className="text-xs text-[#64748b] mb-4">Normalized 0-100 across the peer group</p>
-            <ResponsiveContainer width="100%" height={300}>
-              <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="65%">
+            <ResponsiveContainer width="100%" height={420}>
+              <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
                 <PolarGrid stroke="#2a3a4e" />
                 <PolarAngleAxis dataKey="metric" tick={{ fill: '#94a3b8', fontSize: 10 }} />
                 <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
