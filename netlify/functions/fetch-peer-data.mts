@@ -161,8 +161,10 @@ function buildCompetitorContext(
 
   if (keyMetrics) {
     const metrics: string[] = [];
-    if (keyMetrics.peRatio) metrics.push(`P/E: ${keyMetrics.peRatio.toFixed(1)}`);
-    if (keyMetrics.evToEbitda) metrics.push(`EV/EBITDA: ${keyMetrics.evToEbitda.toFixed(1)}`);
+    const pe = keyMetrics.peRatio ?? (keyMetrics.earningsYield ? 1 / keyMetrics.earningsYield : null);
+    const evEbitda = keyMetrics.evToEbitda ?? keyMetrics.evToEBITDA ?? null;
+    if (pe) metrics.push(`P/E: ${pe.toFixed(1)}`);
+    if (evEbitda) metrics.push(`EV/EBITDA: ${evEbitda.toFixed(1)}`);
     if (keyMetrics.returnOnEquity) metrics.push(`ROE: ${pct(keyMetrics.returnOnEquity)}`);
     if (keyMetrics.debtToEquity != null) metrics.push(`D/E: ${keyMetrics.debtToEquity.toFixed(2)}`);
     if (keyMetrics.currentRatio) metrics.push(`Current: ${keyMetrics.currentRatio.toFixed(2)}`);
@@ -341,10 +343,10 @@ export default async function handler(req: Request, _context: Context) {
             ebitdaFormatted: ebitda ? formatCurrency(ebitda) : undefined,
             marketCap: profile.marketCap || undefined,
             marketCapFormatted: profile.marketCap ? formatCurrency(profile.marketCap) : undefined,
-            peRatio: keyMetrics?.peRatio || undefined,
-            evToEbitda: keyMetrics?.evToEbitda || undefined,
+            peRatio: keyMetrics?.peRatio ?? (keyMetrics?.earningsYield ? 1 / keyMetrics.earningsYield : undefined),
+            evToEbitda: keyMetrics?.evToEbitda ?? keyMetrics?.evToEBITDA ?? undefined,
             returnOnEquity: keyMetrics?.returnOnEquity != null ? keyMetrics.returnOnEquity * 100 : undefined,
-            debtToEquity: keyMetrics?.debtToEquity || undefined,
+            debtToEquity: keyMetrics?.debtToEquity ?? (balance?.totalDebt != null && balance?.totalStockholdersEquity ? balance.totalDebt / balance.totalStockholdersEquity : undefined),
             currentRatio: keyMetrics?.currentRatio || undefined,
             employees: profile.fullTimeEmployees ? Number(profile.fullTimeEmployees) : undefined,
             // New fields

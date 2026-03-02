@@ -303,14 +303,19 @@ ${regions.map(([name, val]) => `- ${name}: ${formatCurrency(val as number)} (${(
   let metricsSection = "";
   if (Array.isArray(keyMetricsData) && keyMetricsData.length > 0) {
     const km = keyMetricsData[0];
+    const peRatio = km.peRatio ?? (km.earningsYield ? 1 / km.earningsYield : null);
+    const evEbitda = km.evToEbitda ?? km.evToEBITDA ?? null;
+    const deRatioKm = km.debtToEquity ?? (
+      Array.isArray(balanceData) && balanceData.length > 0 && balanceData[0].totalStockholdersEquity
+        ? (balanceData[0].totalDebt || 0) / balanceData[0].totalStockholdersEquity
+        : null
+    );
     metricsSection = `
 KEY FINANCIAL METRICS:
-- P/E Ratio: ${km.peRatio?.toFixed(1) ?? "N/A"} | EV/EBITDA: ${km.evToEbitda?.toFixed(1) ?? "N/A"}
+- P/E Ratio: ${peRatio?.toFixed(1) ?? "N/A"} | EV/EBITDA: ${evEbitda?.toFixed(1) ?? "N/A"}
 - Return on Equity: ${km.returnOnEquity ? pct(km.returnOnEquity) : "N/A"} | Return on Assets: ${km.returnOnAssets ? pct(km.returnOnAssets) : "N/A"}
-- Debt/Equity: ${km.debtToEquity?.toFixed(2) ?? "N/A"} | Current Ratio: ${km.currentRatio?.toFixed(2) ?? "N/A"}
-- Free Cash Flow/Share: $${km.freeCashFlowPerShare?.toFixed(2) ?? "N/A"}
+- Debt/Equity: ${deRatioKm?.toFixed(2) ?? "N/A"} | Current Ratio: ${km.currentRatio?.toFixed(2) ?? "N/A"}
 - Enterprise Value: ${km.enterpriseValue ? formatCurrency(km.enterpriseValue) : "N/A"}
-- Dividend Yield: ${km.dividendYield ? pct(km.dividendYield) : "N/A"}
 `;
   }
 
