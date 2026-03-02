@@ -332,7 +332,7 @@ export function PeerBenchmarkPage() {
 
               <div className="flex flex-col gap-2">
                 {firepowerData.map((d, i) => {
-                  const pct = (d.firepower / maxFP) * 100;
+                  const barPct = (d.firepower / maxFP) * 100;
                   return (
                     <div key={d.symbol} className="flex items-center gap-3">
                       {/* Rank */}
@@ -350,22 +350,15 @@ export function PeerBenchmarkPage() {
                         <div
                           className="h-full rounded transition-all flex items-center"
                           style={{
-                            width: `${Math.max(pct, 4)}%`,
+                            width: `${Math.max(barPct, 4)}%`,
                             backgroundColor: d.isTarget ? '#f97316' : colorMap[d.symbol] || '#3b82f6',
                             opacity: d.isTarget ? 1 : 0.6,
                           }}
                         >
-                          {pct > 25 && (
-                            <span className="text-[10px] font-mono font-semibold text-white pl-2 truncate">
-                              {fmt(d.firepower)}
-                            </span>
-                          )}
-                        </div>
-                        {pct <= 25 && (
-                          <span className="absolute left-[calc(var(--w)+8px)] top-1/2 -translate-y-1/2 text-[10px] font-mono text-[#94a3b8]" style={{ '--w': `${Math.max(pct, 4)}%` } as any}>
+                          <span className="text-[10px] font-mono font-semibold text-white pl-2 truncate">
                             {fmt(d.firepower)}
                           </span>
-                        )}
+                        </div>
                       </div>
 
                       {/* Breakdown */}
