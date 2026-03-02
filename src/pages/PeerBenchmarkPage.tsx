@@ -387,15 +387,15 @@ export function PeerBenchmarkPage() {
                   <th className="text-left py-3 px-3 text-[10px] uppercase tracking-widest text-[#f97316] font-semibold sticky left-0 bg-[#1a2332] z-10">Company</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Revenue</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">EBITDA</th>
-                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Gross %</th>
-                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Op %</th>
-                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Net %</th>
+                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Gross Margin</th>
+                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Oper. Margin</th>
+                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Net Margin</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Mkt Cap</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">P/E</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">EV/EBITDA</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">ROE</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">D/E</th>
-                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Current</th>
+                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Current Ratio</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Employees</th>
                 </tr>
               </thead>
