@@ -146,7 +146,7 @@ export default async function handler(req: Request, _context: Context) {
   const [estimatesData, priceTargetData, cashFlowData, revenueProductData, revenueGeoData, peersCsvText, secFilingsData, maSearchData] = await Promise.all([
     fmpFetch("analyst-estimates", { symbol, period: "annual", limit: "1" }, fmpKey),
     fmpFetch("price-target-consensus", { symbol }, fmpKey),
-    fmpFetch("cashflow-statement", { symbol, period: "annual", limit: "2" }, fmpKey),
+    fmpFetch("cash-flow-statement", { symbol, period: "annual", limit: "2" }, fmpKey),
     fmpFetch("revenue-product-segmentation", { symbol, period: "annual" }, fmpKey),
     fmpFetch("revenue-geographic-segments", { symbol, period: "annual" }, fmpKey),
     Promise.resolve(""), // peers resolved from hardcoded data below
@@ -214,11 +214,11 @@ export default async function handler(req: Request, _context: Context) {
     financialsSection += `
 INCOME STATEMENT (${latest.date}):
 - Revenue: ${formatCurrency(latest.revenue)}${revenueGrowth}
-- Gross Profit: ${formatCurrency(latest.grossProfit)} (${pct(latest.grossProfitRatio)} margin)
-- Operating Income: ${formatCurrency(latest.operatingIncome)} (${pct(latest.operatingIncomeRatio)} margin)
-- Net Income: ${formatCurrency(latest.netIncome)} (${pct(latest.netIncomeRatio)} margin)
+- Gross Profit: ${formatCurrency(latest.grossProfit)} (${latest.revenue > 0 ? pct(latest.grossProfit / latest.revenue) : "N/A"} margin)
+- Operating Income: ${formatCurrency(latest.operatingIncome)} (${latest.revenue > 0 ? pct(latest.operatingIncome / latest.revenue) : "N/A"} margin)
+- Net Income: ${formatCurrency(latest.netIncome)} (${latest.revenue > 0 ? pct(latest.netIncome / latest.revenue) : "N/A"} margin)
 - EBITDA: ${formatCurrency(latest.ebitda)}
-- EPS: $${latest.epsdiluted?.toFixed(2) ?? "N/A"}
+- EPS: $${(latest.epsDiluted ?? latest.epsdiluted)?.toFixed(2) ?? "N/A"}
 `;
   }
 
@@ -250,7 +250,7 @@ CASH FLOW STATEMENT (${cf.date}):
 - Capital Expenditure: ${formatCurrency(Math.abs(cf.capitalExpenditure || 0))}
 - Free Cash Flow: ${formatCurrency(fcf)}${fcfGrowth}
 - Acquisitions: ${cf.acquisitionsNet ? formatCurrency(Math.abs(cf.acquisitionsNet)) : "None"}
-- Dividends Paid: ${cf.dividendsPaid ? formatCurrency(Math.abs(cf.dividendsPaid)) : "N/A"}
+- Dividends Paid: ${cf.netDividendsPaid ? formatCurrency(Math.abs(cf.netDividendsPaid)) : (cf.commonDividendsPaid ? formatCurrency(Math.abs(cf.commonDividendsPaid)) : "N/A")}
 - Share Repurchases: ${cf.commonStockRepurchased ? formatCurrency(Math.abs(cf.commonStockRepurchased)) : "N/A"}
 - Debt Repayment: ${cf.debtRepayment ? formatCurrency(Math.abs(cf.debtRepayment)) : "N/A"}
 `;
@@ -453,8 +453,8 @@ ${maSearchData.slice(0, 10).map((deal: any) => {
   // Card 2: Profitability
   if (Array.isArray(incomeData) && incomeData.length > 0) {
     const latest = incomeData[0];
-    const grossMargin = latest.grossProfitRatio * 100;
-    const opMargin = latest.operatingIncomeRatio * 100;
+    const grossMargin = latest.revenue > 0 ? (latest.grossProfit / latest.revenue) * 100 : 0;
+    const opMargin = latest.revenue > 0 ? (latest.operatingIncome / latest.revenue) * 100 : 0;
 
     let obs: string;
     if (opMargin > 15) obs = `Healthy operating margins of ${opMargin.toFixed(1)}% provide acquisition flexibility — the company can absorb integration costs and temporarily dilutive deals without earnings pressure.`;
@@ -495,7 +495,6 @@ ${maSearchData.slice(0, 10).map((deal: any) => {
   // Card 4: Acquisition Firepower (leverage-adjusted)
   if (Array.isArray(balanceData) && balanceData.length > 0) {
     const bs = balanceData[0];
-    const nwc = (bs.totalCurrentAssets || 0) - (bs.totalCurrentLiabilities || 0);
     const cash = bs.cashAndCashEquivalents || 0;
     const fcf = Array.isArray(cashFlowData) && cashFlowData.length > 0
       ? (cashFlowData[0].operatingCashFlow || 0) - Math.abs(cashFlowData[0].capitalExpenditure || 0)
@@ -510,7 +509,7 @@ ${maSearchData.slice(0, 10).map((deal: any) => {
     const headroom = Math.max(0, Math.min(1, (DE_CEILING - deRatioForFP) / DE_CEILING));
     const fcfMult = headroom * MAX_MULT;
     const estCapacity = Math.max(fcf * fcfMult, 0);
-    const dryPowder = Math.max(nwc, 0) + estCapacity;
+    const dryPowder = cash + estCapacity;
 
     let obs: string;
     if (dryPowder > 500_000_000) obs = "Substantial war chest enables transformational deals. Could pursue platform acquisitions without significant leverage or equity dilution.";
@@ -521,7 +520,7 @@ ${maSearchData.slice(0, 10).map((deal: any) => {
     highlights.push({
       label: "Acquisition Firepower",
       value: formatCurrency(dryPowder),
-      detail: `${formatCurrency(Math.max(nwc, 0))} NWC + ${formatCurrency(estCapacity)} est. capacity (${fcfMult.toFixed(1)}x FCF at ${deRatioForFP.toFixed(1)}x D/E)`,
+      detail: `${formatCurrency(cash)} cash + ${formatCurrency(estCapacity)} est. capacity (${fcfMult.toFixed(1)}x FCF at ${deRatioForFP.toFixed(1)}x D/E)`,
       observation: obs,
     });
   }
