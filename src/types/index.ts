@@ -129,6 +129,55 @@ export interface RevenueSegment {
   percent: number;
 }
 
+// ─── Dimension Metadata for Results Page ───────────────────────────────
+// These descriptions come from the generate-briefing prompt (lines 86-108).
+// The frontend uses them to replace generic "Conservative"/"Aggressive" axis
+// labels with meaningful context for each dimension.
+//
+// BACKEND NOTE (for Claude Code):
+// If the AI generates new/different dimension names, either add them here
+// or return description + leftLabel + rightLabel in the DimensionSpectrum
+// response. Until then the frontend falls back to the dimension name + generic labels.
+
+export interface DimensionMeta {
+  description: string;  // What this dimension measures
+  leftLabel: string;    // What the left (conservative/index 0) end means
+  rightLabel: string;   // What the right (aggressive/max index) end means
+}
+
+export const DIMENSION_METADATA: Record<string, DimensionMeta> = {
+  'Growth Objective': {
+    description: 'What is the main strategic goal of acquisitions?',
+    leftLabel: 'Safe / incremental',
+    rightLabel: 'Bold / transformational',
+  },
+  'Target Profile': {
+    description: 'What kind of company should we acquire?',
+    leftLabel: 'Safe / proven',
+    rightLabel: 'Risky / innovative',
+  },
+  'Risk Posture': {
+    description: 'How aggressive should the M&A strategy be?',
+    leftLabel: 'Cautious',
+    rightLabel: 'Bold',
+  },
+  'Integration': {
+    description: 'How will acquired companies fit into the portfolio?',
+    leftLabel: 'Tightest integration',
+    rightLabel: 'Most independent',
+  },
+  'Capability Priority': {
+    description: 'What capability matters most in a target?',
+    leftLabel: 'Operational / tangible',
+    rightLabel: 'Strategic / intangible',
+  },
+  'Strategic Proximity': {
+    description: 'How far from the core business should acquisitions venture?',
+    leftLabel: 'Closest to core',
+    rightLabel: 'Furthest from core',
+  },
+};
+
 export interface CompetitorProfile {
   symbol: string;
   name: string;

@@ -8,6 +8,8 @@ import { VotePage } from './pages/VotePage.tsx';
 import { TransitionPage } from './pages/TransitionPage.tsx';
 import { ResultsPage } from './pages/ResultsPage.tsx';
 import { BriefingMockup } from './pages/BriefingMockup.tsx';
+import { ResultsMockup } from './pages/ResultsMockup.tsx';
+import { SpectrumComparison } from './pages/SpectrumComparison.tsx';
 
 function AppRouter() {
   const { state } = useGameState();
@@ -19,8 +21,10 @@ function AppRouter() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  // Show mockup when navigating to /#mockup
+  // Show mockups when navigating to hash routes
   if (hash === '#mockup') return <BriefingMockup />;
+  if (hash === '#results-mockup') return <ResultsMockup />;
+  if (hash === '#spectrum-compare') return <SpectrumComparison />;
 
   switch (state.phase) {
     case 'welcome':
