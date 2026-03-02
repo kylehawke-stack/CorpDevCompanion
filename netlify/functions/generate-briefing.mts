@@ -53,7 +53,7 @@ export default async function handler(req: Request, _context: Context) {
 
   const taskPrompt = `You have two tasks based on the financial data provided above:
 
-TASK 1: Generate 9-23 qualitative insight cards from earnings calls, analyst data, and competitive landscape.
+TASK 1: Generate 9-30 qualitative insight cards from earnings calls, analyst data, and competitive landscape.
 TASK 2: Generate 18-30 strategic framework options for pairwise voting (3-5 per dimension, ordered conservative to aggressive).
 
 ═══ TASK 1: QUALITATIVE INSIGHT CARDS ═══
@@ -85,8 +85,15 @@ Each card focuses on a DIFFERENT analyst concern or thesis. Possible themes (onl
 - Sector headwinds & macro risks
 Each card MUST include a direct attributed quote from an analyst, e.g., 'Analyst Adam Bradley asked: "quote here"'. If no formal analyst coverage exists, use analyst questions from the earnings call Q&A. Each card should cover a DISTINCT concern — no overlap.
 
-CATEGORY 3: "Competitive Positioning" — Generate exactly 1 card with label: "Competitive Positioning".
-How does the company compare to its direct competitors? Reference specific competitors by name from the competitive landscape data. Identify key competitive advantages, gaps, and M&A opportunities to strengthen positioning.
+CATEGORY 3: "Competitive Positioning" — Generate 3-10 individual cards, each with label: "Competitive Positioning".
+Each card focuses on a DIFFERENT competitive dimension. Possible themes (only generate where there's real substance):
+- Head-to-head vs. key competitor (name them — one card per major competitor)
+- Product/category gaps vs. the competitive set
+- Distribution & channel advantages/disadvantages
+- Pricing power & brand perception relative to peers
+- Geographic coverage gaps
+- M&A opportunities to strengthen competitive position
+Reference specific competitors by name from the competitive landscape data.
 
 Each card has:
 - "label": the category name (use EXACTLY "Earnings Call Insights", "Analyst Perspectives", or "Competitive Positioning")
@@ -205,7 +212,7 @@ Return ONLY valid JSON:
   try {
     const stream = client.messages.stream({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 6000,
+      max_tokens: 8000,
       temperature: 0.7,
       system: systemMessages,
       messages: [{ role: "user", content: taskPrompt }],

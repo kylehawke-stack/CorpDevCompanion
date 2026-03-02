@@ -119,8 +119,8 @@ export interface BriefingQuote {
  */
 export const BRIEFING_CARD_GROUPS = {
   kpiLabels: ['Revenue & Growth', 'Profitability', 'Leverage & Capacity', 'Acquisition Firepower'],
-  narrativeLabels: ['Revenue & Growth', 'Profitability', 'Cash Flow & Firepower', 'Acquisitiveness', 'Leverage & Capacity', 'Competitive Positioning'],
-  pullquoteLabels: ['Earnings Call Insights', 'Analyst Perspectives'],
+  narrativeLabels: ['Revenue & Growth', 'Profitability', 'Cash Flow & Firepower', 'Acquisitiveness', 'Leverage & Capacity'],
+  pullquoteLabels: ['Earnings Call Insights', 'Analyst Perspectives', 'Competitive Positioning'],
 } as const;
 
 export interface RevenueSegment {
