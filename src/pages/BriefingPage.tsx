@@ -61,6 +61,7 @@ export function BriefingPage() {
   const segments = state.revenueSegments;
   const profile = state.companyProfile;
   const [showCreateSession, setShowCreateSession] = useState(false);
+  const [carouselIndexes, setCarouselIndexes] = useState<Record<string, number>>({});
 
   const hasPeerData = state.peerFinancials.length > 0;
 
@@ -223,13 +224,20 @@ export function BriefingPage() {
           </div>
         )}
 
-        {/* ── Pullquote Section (Earnings Call + Analyst) ── */}
+        {/* ── Pullquote Carousels (Earnings Call + Analyst + Competitive) ── */}
         {pullquoteHighlights.length > 0 ? (
           <div className="space-y-5 mb-10">
-            {pullquoteHighlights.map((h, idx) => {
+            {(BRIEFING_CARD_GROUPS.pullquoteLabels as readonly string[]).map((label) => {
+              const cards = pullquoteHighlights.filter(h => h.label === label);
+              if (cards.length === 0) return null;
+              const idx = carouselIndexes[label] ?? 0;
+              const h = cards[idx];
               const extracted = extractQuote(h.observation);
+              const hasPrev = idx > 0;
+              const hasNext = idx < cards.length - 1;
+
               return (
-                <div key={`${h.label}-${idx}`} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-6">
+                <div key={label} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-6 relative">
                   <div className="flex items-center justify-between mb-4">
                     <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316]">
                       {h.label}
@@ -237,27 +245,61 @@ export function BriefingPage() {
                     <p className="text-xs text-[#64748b]">{h.detail}</p>
                   </div>
 
-                  <p className="text-lg font-semibold text-[#e2e8f0] mb-4">{h.value}</p>
+                  <p className="text-xl font-bold text-[#e2e8f0] mb-4">{h.value}</p>
 
                   {extracted?.surrounding && (
-                    <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+                    <p className="text-[15px] text-[#94a3b8] leading-relaxed mb-5">
                       {extracted.surrounding}
                     </p>
                   )}
 
                   {extracted ? (
-                    <blockquote className="border-l-4 border-[#f97316] pl-5 py-3 bg-[#f97316]/[0.04] rounded-r-lg">
-                      <p className="text-base text-[#e2e8f0] italic leading-relaxed">
+                    <blockquote className="border-l-4 border-[#f97316] pl-6 py-4 bg-[#0f1419]/60 rounded-r-lg">
+                      <p className="text-[17px] text-[#e2e8f0] italic leading-relaxed font-light">
                         &ldquo;{extracted.text}&rdquo;
                       </p>
-                      <p className="text-sm text-[#f97316] mt-2 font-medium not-italic">
+                      <p className="text-sm text-[#f97316] mt-3 font-semibold not-italic">
                         &mdash; {extracted.speaker}
                       </p>
                     </blockquote>
                   ) : (
-                    <p className="text-sm text-[#94a3b8] leading-relaxed">
+                    <p className="text-[15px] text-[#94a3b8] leading-relaxed">
                       <StyledText text={h.observation} />
                     </p>
+                  )}
+
+                  {/* Carousel controls */}
+                  {cards.length > 1 && (
+                    <div className="flex items-center justify-between mt-5 pt-4 border-t border-[#2a3a4e]">
+                      <button
+                        onClick={() => setCarouselIndexes(prev => ({ ...prev, [label]: idx - 1 }))}
+                        disabled={!hasPrev}
+                        className={`p-1.5 rounded-lg transition-colors ${hasPrev ? 'text-[#e2e8f0] hover:bg-[#2a3a4e]' : 'text-[#2a3a4e] cursor-default'}`}
+                        aria-label="Previous"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        {cards.map((_, dotIdx) => (
+                          <button
+                            key={dotIdx}
+                            onClick={() => setCarouselIndexes(prev => ({ ...prev, [label]: dotIdx }))}
+                            className={`rounded-full transition-all ${dotIdx === idx ? 'w-2.5 h-2.5 bg-[#f97316]' : 'w-1.5 h-1.5 bg-[#475569] hover:bg-[#64748b]'}`}
+                            aria-label={`Card ${dotIdx + 1}`}
+                          />
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => setCarouselIndexes(prev => ({ ...prev, [label]: idx + 1 }))}
+                        disabled={!hasNext}
+                        className={`p-1.5 rounded-lg transition-colors ${hasNext ? 'text-[#e2e8f0] hover:bg-[#2a3a4e]' : 'text-[#2a3a4e] cursor-default'}`}
+                        aria-label="Next"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    </div>
                   )}
                 </div>
               );
