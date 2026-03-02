@@ -472,7 +472,16 @@ export function PeerBenchmarkPage() {
               <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={{ stroke: '#2a3a4e' }} tickLine={false} />
               <YAxis tickFormatter={v => `${v}%`} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} iconType="circle" iconSize={8} />
+              <Legend
+                wrapperStyle={{ fontSize: 11, color: '#94a3b8' }}
+                iconType="circle"
+                iconSize={8}
+                payload={[
+                  { value: 'Gross', type: 'circle', color: '#10b981' },
+                  { value: 'Operating', type: 'circle', color: '#3b82f6' },
+                  { value: 'Net', type: 'circle', color: '#f59e0b' },
+                ]}
+              />
               <Bar dataKey="Gross" fill="#10b981" radius={[2, 2, 0, 0]} />
               <Bar dataKey="Operating" fill="#3b82f6" radius={[2, 2, 0, 0]} />
               <Bar dataKey="Net" fill="#f59e0b" radius={[2, 2, 0, 0]} />
