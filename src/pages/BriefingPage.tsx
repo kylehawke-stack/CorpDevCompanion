@@ -137,6 +137,24 @@ export function BriefingPage() {
           </div>
         </header>
 
+        {/* ── Go Live Banner ── */}
+        {supabase && !state.isCollaborative && state.ideas.length > 0 && (
+          <div className="flex items-center justify-between bg-[#1a2332] border border-[#f97316]/20 rounded-xl px-5 py-3 mb-6">
+            <div className="flex items-center gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-[#f97316]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <p className="text-sm text-[#94a3b8]">Invite your team to vote together in real time</p>
+            </div>
+            <button
+              onClick={() => setShowCreateSession(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#f97316]/10 border border-[#f97316]/30 text-[#f97316] hover:bg-[#f97316]/20 hover:border-[#f97316]/50 transition-colors text-sm font-semibold whitespace-nowrap"
+            >
+              Go Live
+            </button>
+          </div>
+        )}
+
         {/* ── KPI Strip ── */}
         {kpiHighlights.length > 0 && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -313,26 +331,8 @@ export function BriefingPage() {
           </div>
         ) : null}
 
-        {/* ── Go Live + CTA ── */}
+        {/* ── CTA ── */}
         <div className="text-center pt-2 pb-8">
-          {/* Show "Go Live" button when Supabase is configured and not yet collaborative */}
-          {supabase && !state.isCollaborative && state.ideas.length > 0 && (
-            <div className="mb-4">
-              <button
-                onClick={() => setShowCreateSession(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border-2 border-[#f97316]/30 text-[#f97316] hover:bg-[#f97316]/5 hover:border-[#f97316]/50 transition-colors text-sm font-medium"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Go Live — Invite others to vote
-              </button>
-              <p className="text-xs text-[#64748b] mt-1.5">
-                Create a shared session so your team can vote together in real time
-              </p>
-            </div>
-          )}
-
           <Button onClick={handleContinue} size="lg" className="px-10" disabled={state.ideas.length === 0}>
             {state.ideas.length === 0
               ? 'Generating strategic options...'
