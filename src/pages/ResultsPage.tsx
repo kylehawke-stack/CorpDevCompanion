@@ -24,7 +24,6 @@ export function ResultsPage() {
   }, [rankings, tierFilter]);
 
   const handleBackToVoting = () => {
-    // Return to whichever voting step they were in
     const votingPhase = state.step3Unlocked
       ? 'voting_step3'
       : state.step2Unlocked
@@ -40,13 +39,13 @@ export function ResultsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-base">
+    <div className="min-h-screen bg-[#0f1419]">
       {/* Top bar */}
-      <header className="bg-surface-card border-b border-edge px-6 py-3">
+      <header className="bg-[#1a2332] border-b border-[#2a3a4e] px-6 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-heading">CorpDev Companion</h1>
-            <p className="text-xs text-muted">
+            <h1 className="text-lg font-semibold text-white">CorpDev Companion</h1>
+            <p className="text-xs text-[#94a3b8]">
               {state.sessionName} &middot; {state.totalVoteCount} votes
             </p>
           </div>
@@ -64,8 +63,18 @@ export function ResultsPage() {
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
         {/* Rankings */}
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-heading">Force-Ranked M&A Opportunities</h2>
+          <div className="mb-4">
+            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">
+              {tierFilter === 'strategic_priority' ? 'Strategic Priorities' : 'Rankings'}
+            </p>
+            <h2 className="text-2xl font-bold text-white mb-1">
+              Force-Ranked M&A {tierFilter === 'strategic_priority' ? 'Dimensions' : 'Opportunities'}
+            </h2>
+            {tierFilter === 'strategic_priority' && (
+              <p className="text-sm text-[#94a3b8]">
+                6 strategic dimensions ranked by team consensus. The bar shows the spectrum of options with the orange marker at the team's weighted position.
+              </p>
+            )}
           </div>
 
           <TierFilter selected={tierFilter} onChange={setTierFilter} />
@@ -74,20 +83,23 @@ export function ResultsPage() {
             {tierFilter === 'strategic_priority' ? (
               <SpectrumResults rankings={filteredRankings} />
             ) : (
-              <div className="bg-surface-card rounded-xl border border-edge shadow-sm overflow-hidden">
+              <div className="bg-[#1a2332] rounded-xl border border-[#2a3a4e] overflow-hidden">
                 <RankingTable rankings={filteredRankings} />
               </div>
             )}
           </div>
 
-          <p className="text-xs text-dimmed mt-2">
+          <p className="text-[11px] text-[#64748b] mt-4">
             Scores use Bradley-Terry MLE displayed as Elo-equivalent ratings (median = 1500). 95% confidence intervals via Fisher information.
           </p>
         </section>
 
         {/* Strategic Narrative */}
         <section>
-          <h2 className="text-2xl font-bold text-heading mb-4">Strategic Analysis</h2>
+          <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">
+            Analysis
+          </p>
+          <h2 className="text-2xl font-bold text-white mb-4">Strategic Narrative</h2>
           <StrategicNarrative
             rankings={rankings}
             totalVotes={state.totalVoteCount}

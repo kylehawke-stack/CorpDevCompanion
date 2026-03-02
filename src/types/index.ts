@@ -199,6 +199,8 @@ export interface PeerFinancials {
   symbol: string;
   name: string;
   logo: string;
+
+  // ── Existing fields (already populated by fetch-peer-data) ──
   revenue: number;
   revenueFormatted?: string;
   grossProfit: number;
