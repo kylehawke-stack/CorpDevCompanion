@@ -1,17 +1,11 @@
 /**
- * ResultsMockup.tsx — Static mockup of the redesigned Strategic Priorities results view.
+ * ResultsMockup.tsx -- Redesigned Strategic Priorities results using segmented bar.
  * Navigate to /#results-mockup to preview.
  *
- * Design goals:
- * - Compact, editorial layout following Bloomberg theme
- * - Each dimension is a tighter card with a refined spectrum slider
- * - Rank badge fades for lower ranks; top 3 get visual emphasis
- * - Spectrum uses a gradient track with a glowing position indicator
- * - Attribute labels sit on the track as tick marks rather than floating dots
- * - Two-column layout for dimensions 3-6 to reduce vertical scroll
+ * All 6 dimensions stacked full-width. Each card shows a segmented bar
+ * divided into labeled zones with an orange position marker. Top-ranked
+ * dimensions get an accent border to show visual priority.
  */
-
-// --- Mock data based on the HBB screenshot ---
 
 interface MockAttribute {
   title: string;
@@ -23,7 +17,7 @@ interface MockSpectrum {
   dimension: string;
   importanceRank: number;
   importance: number;
-  position: number; // 0–1
+  position: number; // 0-1, weighted vote position
   attributes: MockAttribute[];
 }
 
@@ -104,17 +98,17 @@ const MOCK_SPECTRUMS: MockSpectrum[] = [
   },
 ];
 
-// --- Components ---
+/* ── Rank Badge ─────────────────────────────────────────────────────── */
 
 function RankBadge({ rank }: { rank: number }) {
   const isTop = rank <= 3;
   return (
     <span
       className={`
-        inline-flex items-center justify-center w-7 h-7 rounded-lg font-mono text-sm font-bold
+        inline-flex items-center justify-center w-8 h-8 rounded-lg font-mono text-sm font-bold
         ${isTop
-          ? 'bg-accent/15 text-accent border border-accent/30'
-          : 'bg-surface-elevated text-dimmed border border-edge'
+          ? 'bg-[#f97316]/15 text-[#f97316] border border-[#f97316]/30'
+          : 'bg-[#1e293b] text-[#94a3b8] border border-[#2a3a4e]'
         }
       `}
     >
@@ -123,151 +117,178 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
-function SpectrumTrack({ spectrum }: { spectrum: MockSpectrum }) {
-  const maxIdx = Math.max(...spectrum.attributes.map((a) => a.dimensionIndex), 1);
+/* ── Segmented Bar ──────────────────────────────────────────────────── */
+
+function SegmentedBar({ spectrum }: { spectrum: MockSpectrum }) {
+  const segments = spectrum.attributes;
+  const posPercent = spectrum.position * 100;
+
+  // Which segment does the position fall in?
+  const segWidth = 100 / segments.length;
+  const activeIdx = Math.min(
+    Math.floor(spectrum.position * segments.length),
+    segments.length - 1
+  );
 
   return (
-    <div className="mt-4 mb-2">
-      {/* Conservative / Aggressive labels */}
-      <div className="flex justify-between text-[10px] uppercase tracking-widest mb-2.5">
-        <span className="text-muted">Conservative</span>
-        <span className="text-muted">Aggressive</span>
+    <div className="mt-4">
+      {/* Axis labels */}
+      <div className="flex justify-between mb-2">
+        <span className="text-[10px] uppercase tracking-widest text-[#94a3b8] font-medium">
+          Conservative
+        </span>
+        <span className="text-[10px] uppercase tracking-widest text-[#94a3b8] font-medium">
+          Aggressive
+        </span>
       </div>
 
-      {/* Track */}
-      <div className="relative h-10">
-        {/* Background track line */}
-        <div className="absolute top-[18px] left-0 right-0 h-[2px] bg-edge rounded-full" />
-
-        {/* Filled portion from left to position */}
-        <div
-          className="absolute top-[18px] left-0 h-[2px] bg-accent/40 rounded-full"
-          style={{ width: `${spectrum.position * 100}%` }}
-        />
-
-        {/* Attribute tick marks + dots */}
-        {spectrum.attributes.map((attr) => {
-          const pct = maxIdx === 0 ? 50 : (attr.dimensionIndex / maxIdx) * 100;
-          return (
-            <div
-              key={attr.title}
-              className="absolute -translate-x-1/2 flex flex-col items-center"
-              style={{ left: `${pct}%`, top: '12px' }}
-            >
-              {/* Tick dot */}
-              <div className="w-2 h-2 rounded-full bg-edge-light border border-surface-card" />
-              {/* Tick line */}
-              <div className="w-px h-2 bg-edge-light mt-0.5" />
-            </div>
-          );
-        })}
-
-        {/* User position indicator */}
-        <div
-          className="absolute -translate-x-1/2 z-10"
-          style={{ left: `${spectrum.position * 100}%`, top: '10px' }}
-        >
-          <div className="w-4 h-4 rounded-full bg-accent shadow-[0_0_8px_rgba(249,115,22,0.5)] border-2 border-surface-card" />
+      {/* Segmented bar with position marker */}
+      <div className="relative">
+        {/* Segments */}
+        <div className="flex rounded-lg overflow-hidden border border-[#2a3a4e]">
+          {segments.map((seg, i) => {
+            const isActive = i === activeIdx;
+            return (
+              <div
+                key={seg.title}
+                className="flex items-center justify-center border-r border-[#2a3a4e] last:border-r-0"
+                style={{
+                  flex: 1,
+                  height: '44px',
+                  backgroundColor: isActive
+                    ? 'rgba(249, 115, 22, 0.12)'
+                    : 'rgba(15, 20, 25, 0.6)',
+                }}
+              >
+                <span
+                  className={`text-[11px] font-medium px-1.5 text-center leading-tight ${
+                    isActive ? 'text-[#f97316]' : 'text-[#94a3b8]'
+                  }`}
+                >
+                  {seg.title}
+                </span>
+              </div>
+            );
+          })}
         </div>
-      </div>
 
-      {/* Attribute labels */}
-      <div className="relative h-9 mt-1.5">
-        {spectrum.attributes.map((attr) => {
-          const pct = maxIdx === 0 ? 50 : (attr.dimensionIndex / maxIdx) * 100;
-          return (
-            <div
-              key={attr.title}
-              className="absolute -translate-x-1/2 text-[10px] text-dimmed leading-tight text-center"
-              style={{ left: `${pct}%`, maxWidth: '72px' }}
-            >
-              {attr.title}
-            </div>
-          );
-        })}
+        {/* Orange position dot -- absolutely positioned on the bar */}
+        <div
+          className="absolute top-0 pointer-events-none flex items-center justify-center"
+          style={{
+            left: `${posPercent}%`,
+            transform: 'translateX(-50%)',
+            height: '44px',
+          }}
+        >
+          <div
+            className="w-3.5 h-3.5 rounded-full bg-[#f97316] border-2 border-[#0f1419]"
+            style={{ boxShadow: '0 0 10px rgba(249, 115, 22, 0.6)' }}
+          />
+        </div>
+
+        {/* Triangle pointer below the bar */}
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            left: `${posPercent}%`,
+            transform: 'translateX(-50%)',
+            top: '44px',
+          }}
+        >
+          <div
+            style={{
+              width: 0,
+              height: 0,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: '6px solid #f97316',
+            }}
+          />
+        </div>
       </div>
     </div>
   );
 }
 
-function DimensionCard({ spectrum, variant = 'default' }: { spectrum: MockSpectrum; variant?: 'featured' | 'default' }) {
-  const isFeatured = variant === 'featured';
+/* ── Dimension Card ─────────────────────────────────────────────────── */
+
+function DimensionCard({ spectrum }: { spectrum: MockSpectrum }) {
+  const isTop = spectrum.importanceRank <= 2;
+
   return (
     <div
-      className={`
-        bg-surface-card border rounded-xl transition-colors
-        ${isFeatured
-          ? 'border-accent/30 p-5'
-          : 'border-edge p-4 hover:border-edge-light'
-        }
-      `}
+      className={`bg-[#1a2332] rounded-xl border p-6 ${
+        isTop ? 'border-[#f97316]/25' : 'border-[#2a3a4e]'
+      }`}
     >
-      {/* Header row */}
+      {/* Header: rank, name, score */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-3">
           <RankBadge rank={spectrum.importanceRank} />
-          <h3 className={`font-semibold text-heading ${isFeatured ? 'text-base' : 'text-sm'}`}>
+          <h3 className="text-white font-semibold text-lg">
             {spectrum.dimension}
           </h3>
         </div>
         <div className="text-right">
-          <p className="font-mono text-xs text-muted">
+          <p className="font-mono text-sm text-[#e2e8f0]">
             {Math.round(spectrum.importance)}
           </p>
-          <p className="text-[10px] text-dimmed uppercase tracking-wider">score</p>
+          <p className="text-[10px] text-[#94a3b8] uppercase tracking-wider">
+            score
+          </p>
         </div>
       </div>
 
-      {/* Spectrum */}
-      <SpectrumTrack spectrum={spectrum} />
+      {/* Segmented spectrum bar */}
+      <SegmentedBar spectrum={spectrum} />
     </div>
   );
 }
 
-// --- Main Page ---
+/* ── Page ────────────────────────────────────────────────────────────── */
 
 export function ResultsMockup() {
-  const top2 = MOCK_SPECTRUMS.slice(0, 2);
-  const rest = MOCK_SPECTRUMS.slice(2);
-
   return (
-    <div className="min-h-screen bg-surface-base">
-      {/* Header */}
-      <header className="bg-surface-card border-b border-edge px-6 py-3">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+    <div className="min-h-screen bg-[#0f1419] text-[#e2e8f0]">
+      {/* Header bar */}
+      <header className="bg-[#1a2332] border-b border-[#2a3a4e] px-6 py-3">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-heading">CorpDev Companion</h1>
-            <p className="text-xs text-muted">
-              Hamilton Beach Brands Holding Company &mdash; 3/2/2026 &middot; 25 votes
+            <h1 className="text-lg font-semibold text-white">CorpDev Companion</h1>
+            <p className="text-xs text-[#94a3b8]">
+              {'Hamilton Beach Brands Holding Company \u2014 3/2/2026 \u00B7 25 votes'}
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors">
+            <button className="px-4 py-2 rounded-lg text-sm font-medium bg-[#f97316] text-white hover:bg-[#ea580c] transition-colors">
               Continue Voting
             </button>
-            <button className="px-4 py-2 rounded-lg text-sm font-medium text-muted hover:text-heading transition-colors">
+            <button className="px-4 py-2 rounded-lg text-sm font-medium text-[#94a3b8] hover:text-white transition-colors">
               New Session
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Section header */}
+      <main className="max-w-5xl mx-auto px-6 py-8">
+        {/* Section heading */}
         <div className="mb-6">
-          <p className="uppercase tracking-widest text-[10px] font-semibold text-accent mb-1">
+          <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">
             Strategic Priorities
           </p>
-          <h2 className="text-2xl font-bold text-heading">
+          <h2 className="text-2xl font-bold text-white mb-1">
             Force-Ranked M&A Dimensions
           </h2>
-          <p className="text-sm text-muted mt-1">
-            6 strategic dimensions ranked by team consensus, with positioning from conservative to aggressive.
+          <p className="text-sm text-[#94a3b8]">
+            6 strategic dimensions ranked by team consensus. Each bar shows the
+            spectrum of options from conservative to aggressive, with the orange
+            marker at the team's weighted position.
           </p>
         </div>
 
         {/* Tier filter pills */}
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-8">
           {[
             { label: 'All Tiers', active: false },
             { label: 'Strategic Priorities', active: true },
@@ -279,8 +300,8 @@ export function ResultsMockup() {
               key={tab.label}
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                 tab.active
-                  ? 'bg-accent/15 text-accent border-accent/30 ring-2 ring-offset-1 ring-offset-surface-base ring-accent'
-                  : 'bg-surface-elevated text-muted border-edge hover:bg-surface-hover'
+                  ? 'bg-[#f97316]/15 text-[#f97316] border-[#f97316]/30'
+                  : 'bg-[#1e293b] text-[#94a3b8] border-[#2a3a4e] hover:border-[#475569]'
               }`}
             >
               {tab.label}
@@ -288,30 +309,24 @@ export function ResultsMockup() {
           ))}
         </div>
 
-        {/* Top 2 — featured, full width stacked */}
-        <div className="space-y-4 mb-4">
-          {top2.map((s) => (
-            <DimensionCard key={s.dimension} spectrum={s} variant="featured" />
-          ))}
-        </div>
-
-        {/* Remaining 4 — 2-column grid, compact */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {rest.map((s) => (
+        {/* All dimensions stacked full-width */}
+        <div className="space-y-4">
+          {MOCK_SPECTRUMS.map((s) => (
             <DimensionCard key={s.dimension} spectrum={s} />
           ))}
         </div>
 
         {/* Footer note */}
-        <p className="text-[10px] text-dimmed">
-          Scores use Bradley-Terry MLE displayed as Elo-equivalent ratings (median = 1500). 95% confidence intervals via Fisher information.
+        <p className="text-[11px] text-[#64748b] mt-6">
+          Scores use Bradley-Terry MLE displayed as Elo-equivalent ratings
+          (median = 1500). 95% confidence intervals via Fisher information.
         </p>
 
-        {/* Back to app link */}
+        {/* Back link */}
         <div className="mt-8 text-center">
           <a
             href="#"
-            className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
+            className="text-xs text-[#f97316] hover:text-[#fb923c] underline underline-offset-2 transition-colors"
           >
             Back to app
           </a>
