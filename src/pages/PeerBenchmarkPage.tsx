@@ -36,11 +36,6 @@ function numFmt(val: number | null | undefined): string {
 
 const CHART_COLORS = ['#f97316', '#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#14b8a6'];
 
-function getColor(index: number, isTarget: boolean): string {
-  if (isTarget) return '#f97316';
-  return CHART_COLORS[index % CHART_COLORS.length];
-}
-
 // ── Rank helper ──
 
 function getRank(peers: PeerFinancials[], symbol: string, key: keyof PeerFinancials, higherBetter = true): number {
@@ -565,11 +560,11 @@ export function PeerBenchmarkPage() {
                 wrapperStyle={{ fontSize: 11, color: '#94a3b8' }}
                 iconType="circle"
                 iconSize={8}
-                payload={[
+                {...{ payload: [
                   { value: 'Gross', type: 'circle', color: '#10b981' },
                   { value: 'Operating', type: 'circle', color: '#3b82f6' },
                   { value: 'Net', type: 'circle', color: '#f59e0b' },
-                ]}
+                ] } as Record<string, unknown>}
               />
               <Bar dataKey="Gross" fill="#10b981" radius={[2, 2, 0, 0]} />
               <Bar dataKey="Operating" fill="#3b82f6" radius={[2, 2, 0, 0]} />

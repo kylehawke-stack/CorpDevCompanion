@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import { CreateSessionModal } from '../components/session/CreateSessionModal.tsx';
 import { supabase } from '../lib/supabase.ts';
+import { syncPhaseChange } from '../lib/supabaseSync.ts';
 import { BRIEFING_CARD_GROUPS } from '../types/index.ts';
 import type { FinancialHighlight } from '../types/index.ts';
 
@@ -64,7 +65,12 @@ export function BriefingPage() {
   const hasPeerData = state.peerFinancials.length > 0;
 
   const handleContinue = () => {
-    dispatch({ type: 'SET_PHASE', phase: hasPeerData ? 'peer_benchmarking' : 'voting_step1' });
+    const nextPhase = hasPeerData ? 'peer_benchmarking' : 'voting_step1';
+    dispatch({ type: 'SET_PHASE', phase: nextPhase });
+    // Sync phase to Supabase so Realtime doesn't revert to stale 'briefing'
+    if (state.sessionId) {
+      syncPhaseChange(state.sessionId, nextPhase);
+    }
   };
 
   // Derive card groups from the shared contract
@@ -81,7 +87,7 @@ export function BriefingPage() {
     .filter(Boolean) as FinancialHighlight[];
 
   // Any remaining cards not captured above (fallback for older data shapes)
-  const usedLabels = new Set([
+  const usedLabels: Set<string> = new Set([
     ...BRIEFING_CARD_GROUPS.kpiLabels,
     ...BRIEFING_CARD_GROUPS.narrativeLabels,
     ...BRIEFING_CARD_GROUPS.pullquoteLabels,

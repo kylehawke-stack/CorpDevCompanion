@@ -561,11 +561,11 @@ export function PeerBenchmarkMockup() {
                 wrapperStyle={{ fontSize: 11, color: '#94a3b8' }}
                 iconType="circle"
                 iconSize={8}
-                payload={[
+                {...{ payload: [
                   { value: 'Gross', type: 'circle', color: '#10b981' },
                   { value: 'Operating', type: 'circle', color: '#3b82f6' },
                   { value: 'Net', type: 'circle', color: '#f59e0b' },
-                ]}
+                ] } as Record<string, unknown>}
               />
               <Bar dataKey="Gross" fill="#10b981" radius={[2, 2, 0, 0]} />
               <Bar dataKey="Operating" fill="#3b82f6" radius={[2, 2, 0, 0]} />

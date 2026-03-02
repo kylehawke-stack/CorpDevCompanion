@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase.ts';
 import { rowToIdea, rowToVote } from '../lib/supabaseSync.ts';
-import type { GameAction } from '../types/index.ts';
+import type { GameAction, GameState } from '../types/index.ts';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 /**
@@ -17,6 +17,9 @@ export function useSupabaseRealtime(
   dispatch: React.Dispatch<GameAction>
 ) {
   const channelRef = useRef<RealtimeChannel | null>(null);
+  // Track the last phase we received from the DB so vote-count-only
+  // session updates don't regress a locally-advanced phase.
+  const lastDbPhaseRef = useRef<GameState['phase'] | null>(null);
 
   useEffect(() => {
     if (!supabase || !sessionId) return;
@@ -87,20 +90,23 @@ export function useSupabaseRealtime(
         },
         (payload) => {
           const row = payload.new;
-          dispatch({
-            type: 'REMOTE_SESSION_UPDATE',
-            changes: {
-              phase: row.phase,
-              step2Unlocked: row.step2_unlocked,
-              step3Unlocked: row.step3_unlocked,
-              totalVoteCount: row.total_vote_count,
-              step1VoteCount: row.step1_vote_count,
-              step2VoteCount: row.step2_vote_count,
-              step3VoteCount: row.step3_vote_count,
-              lastInjectionAtVoteCount: row.last_injection_at_vote_count,
-              userDirections: row.user_directions,
-            },
-          });
+          const changes: Partial<GameState> = {
+            step2Unlocked: row.step2_unlocked,
+            step3Unlocked: row.step3_unlocked,
+            totalVoteCount: row.total_vote_count,
+            step1VoteCount: row.step1_vote_count,
+            step2VoteCount: row.step2_vote_count,
+            step3VoteCount: row.step3_vote_count,
+            lastInjectionAtVoteCount: row.last_injection_at_vote_count,
+            userDirections: row.user_directions,
+          };
+          // Only include phase when it actually changed in the DB,
+          // so vote-count-only updates don't regress a locally-advanced phase.
+          if (row.phase !== lastDbPhaseRef.current) {
+            changes.phase = row.phase;
+            lastDbPhaseRef.current = row.phase;
+          }
+          dispatch({ type: 'REMOTE_SESSION_UPDATE', changes });
         }
       )
       .subscribe();
