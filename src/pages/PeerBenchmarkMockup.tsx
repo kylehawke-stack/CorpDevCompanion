@@ -15,6 +15,7 @@ interface Peer {
   operatingMarginPct: number;
   netMarginPct: number;
   ebitda: number;
+  ebitdaMarginPct: number;
   marketCap: number;
   peRatio: number | null;
   evToEbitda: number | null;
@@ -22,15 +23,23 @@ interface Peer {
   debtToEquity: number | null;
   currentRatio: number | null;
   employees: number | null;
+  // New fields from expanded PeerFinancials
+  freeCashFlow: number | null;
+  cashAndCashEquivalents: number | null;
+  totalDebt: number | null;
+  interestCoverage: number | null;
+  roic: number | null;
+  revenueGrowthPct: number | null;
+  acquisitionsNet: number | null;
 }
 
 const PEERS: Peer[] = [
-  { symbol: 'HBB', name: 'Hamilton Beach Brands', revenue: 618_000_000, grossMarginPct: 24.3, operatingMarginPct: 8.1, netMarginPct: 5.2, ebitda: 72_000_000, marketCap: 400_000_000, peRatio: 12.4, evToEbitda: 6.3, returnOnEquity: 22.1, debtToEquity: 0.87, currentRatio: 1.45, employees: 4200 },
-  { symbol: 'LCUT', name: 'Lifetime Brands', revenue: 680_000_000, grossMarginPct: 36.2, operatingMarginPct: 4.8, netMarginPct: 0.9, ebitda: 56_000_000, marketCap: 135_000_000, peRatio: 68.2, evToEbitda: 7.1, returnOnEquity: 2.8, debtToEquity: 1.92, currentRatio: 2.12, employees: 2800 },
-  { symbol: 'LOVE', name: 'The Lovesac Company', revenue: 620_000_000, grossMarginPct: 57.8, operatingMarginPct: 5.2, netMarginPct: 3.8, ebitda: 48_000_000, marketCap: 490_000_000, peRatio: 20.8, evToEbitda: 10.2, returnOnEquity: 14.2, debtToEquity: 0.15, currentRatio: 1.88, employees: 1200 },
-  { symbol: 'IRBT', name: 'iRobot Corporation', revenue: 890_000_000, grossMarginPct: 22.1, operatingMarginPct: -8.5, netMarginPct: -11.2, ebitda: -45_000_000, marketCap: 190_000_000, peRatio: null, evToEbitda: null, returnOnEquity: -48.5, debtToEquity: 2.85, currentRatio: 1.15, employees: 1100 },
-  { symbol: 'FLXS', name: 'Flexsteel Industries', revenue: 380_000_000, grossMarginPct: 20.6, operatingMarginPct: 5.9, netMarginPct: 4.1, ebitda: 32_000_000, marketCap: 275_000_000, peRatio: 17.6, evToEbitda: 8.6, returnOnEquity: 11.8, debtToEquity: 0.42, currentRatio: 2.35, employees: 2400 },
-  { symbol: 'SNBR', name: 'Sleep Number Corp', revenue: 1_700_000_000, grossMarginPct: 58.2, operatingMarginPct: -2.1, netMarginPct: -5.8, ebitda: 18_000_000, marketCap: 400_000_000, peRatio: null, evToEbitda: null, returnOnEquity: null, debtToEquity: null, currentRatio: 0.48, employees: 4900 },
+  { symbol: 'HBB', name: 'Hamilton Beach Brands', revenue: 618_000_000, grossMarginPct: 24.3, operatingMarginPct: 8.1, netMarginPct: 5.2, ebitda: 72_000_000, ebitdaMarginPct: 11.7, marketCap: 400_000_000, peRatio: 12.4, evToEbitda: 6.3, returnOnEquity: 22.1, debtToEquity: 0.87, currentRatio: 1.45, employees: 4200, freeCashFlow: 52_000_000, cashAndCashEquivalents: 45_000_000, totalDebt: 52_000_000, interestCoverage: 8.2, roic: 18.4, revenueGrowthPct: 3.2, acquisitionsNet: -12_000_000 },
+  { symbol: 'LCUT', name: 'Lifetime Brands', revenue: 680_000_000, grossMarginPct: 36.2, operatingMarginPct: 4.8, netMarginPct: 0.9, ebitda: 56_000_000, ebitdaMarginPct: 8.2, marketCap: 135_000_000, peRatio: 68.2, evToEbitda: 7.1, returnOnEquity: 2.8, debtToEquity: 1.92, currentRatio: 2.12, employees: 2800, freeCashFlow: 28_000_000, cashAndCashEquivalents: 18_000_000, totalDebt: 248_000_000, interestCoverage: 2.1, roic: 3.5, revenueGrowthPct: -1.8, acquisitionsNet: -5_000_000 },
+  { symbol: 'LOVE', name: 'The Lovesac Company', revenue: 620_000_000, grossMarginPct: 57.8, operatingMarginPct: 5.2, netMarginPct: 3.8, ebitda: 48_000_000, ebitdaMarginPct: 7.7, marketCap: 490_000_000, peRatio: 20.8, evToEbitda: 10.2, returnOnEquity: 14.2, debtToEquity: 0.15, currentRatio: 1.88, employees: 1200, freeCashFlow: 38_000_000, cashAndCashEquivalents: 85_000_000, totalDebt: 12_000_000, interestCoverage: 42.5, roic: 12.1, revenueGrowthPct: 8.4, acquisitionsNet: 0 },
+  { symbol: 'IRBT', name: 'iRobot Corporation', revenue: 890_000_000, grossMarginPct: 22.1, operatingMarginPct: -8.5, netMarginPct: -11.2, ebitda: -45_000_000, ebitdaMarginPct: -5.1, marketCap: 190_000_000, peRatio: null, evToEbitda: null, returnOnEquity: -48.5, debtToEquity: 2.85, currentRatio: 1.15, employees: 1100, freeCashFlow: -68_000_000, cashAndCashEquivalents: 112_000_000, totalDebt: 285_000_000, interestCoverage: -3.2, roic: -22.8, revenueGrowthPct: -12.5, acquisitionsNet: 0 },
+  { symbol: 'FLXS', name: 'Flexsteel Industries', revenue: 380_000_000, grossMarginPct: 20.6, operatingMarginPct: 5.9, netMarginPct: 4.1, ebitda: 32_000_000, ebitdaMarginPct: 8.4, marketCap: 275_000_000, peRatio: 17.6, evToEbitda: 8.6, returnOnEquity: 11.8, debtToEquity: 0.42, currentRatio: 2.35, employees: 2400, freeCashFlow: 22_000_000, cashAndCashEquivalents: 28_000_000, totalDebt: 35_000_000, interestCoverage: 12.8, roic: 10.2, revenueGrowthPct: -4.2, acquisitionsNet: -18_000_000 },
+  { symbol: 'SNBR', name: 'Sleep Number Corp', revenue: 1_700_000_000, grossMarginPct: 58.2, operatingMarginPct: -2.1, netMarginPct: -5.8, ebitda: 18_000_000, ebitdaMarginPct: 1.1, marketCap: 400_000_000, peRatio: null, evToEbitda: null, returnOnEquity: null, debtToEquity: null, currentRatio: 0.48, employees: 4900, freeCashFlow: -15_000_000, cashAndCashEquivalents: 8_000_000, totalDebt: 620_000_000, interestCoverage: 0.8, roic: -8.5, revenueGrowthPct: -6.1, acquisitionsNet: 0 },
 ];
 
 const CHART_COLORS: Record<string, string> = {
@@ -244,12 +253,14 @@ export function PeerBenchmarkMockup() {
         </div>
 
         {/* ── KPI Comparison Strip ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-8">
           {([
             { label: 'Revenue', val: fmt(target.revenue), avg: fmt(peerAvg('revenue') ?? 0), rank: getRank(PEERS, TARGET, 'revenue') },
+            { label: 'Rev Growth', val: pct(target.revenueGrowthPct), avg: pct(peerAvg('revenueGrowthPct')), rank: getRank(PEERS, TARGET, 'revenueGrowthPct') },
             { label: 'Gross Margin', val: pct(target.grossMarginPct), avg: pct(peerAvg('grossMarginPct')), rank: getRank(PEERS, TARGET, 'grossMarginPct') },
+            { label: 'Free Cash Flow', val: fmt(target.freeCashFlow ?? 0), avg: fmt(peerAvg('freeCashFlow') ?? 0), rank: getRank(PEERS, TARGET, 'freeCashFlow') },
+            { label: 'ROIC', val: pct(target.roic), avg: pct(peerAvg('roic')), rank: getRank(PEERS, TARGET, 'roic') },
             { label: 'EV/EBITDA', val: target.evToEbitda ? `${target.evToEbitda.toFixed(1)}x` : '\u2014', avg: peerAvg('evToEbitda') ? `${peerAvg('evToEbitda')!.toFixed(1)}x` : '\u2014', rank: getRank(PEERS, TARGET, 'evToEbitda', false) },
-            { label: 'Return on Equity', val: pct(target.returnOnEquity), avg: pct(peerAvg('returnOnEquity')), rank: getRank(PEERS, TARGET, 'returnOnEquity') },
           ]).map(kpi => (
             <div key={kpi.label} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
@@ -263,31 +274,41 @@ export function PeerBenchmarkMockup() {
         </div>
 
         {/* ── Small Multiple Metric Bars ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
             <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Revenue</p>
             <MetricBar peers={PEERS} metricKey="revenue" format={fmt} />
+          </div>
+          <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
+            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Free Cash Flow</p>
+            <MetricBar peers={PEERS} metricKey="freeCashFlow" format={fmt} />
           </div>
           <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
             <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Gross Margin</p>
             <MetricBar peers={PEERS} metricKey="grossMarginPct" format={v => pct(v)} />
           </div>
           <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
-            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Return on Equity</p>
-            <MetricBar peers={PEERS} metricKey="returnOnEquity" format={v => pct(v)} />
+            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">ROIC</p>
+            <MetricBar peers={PEERS} metricKey="roic" format={v => pct(v)} />
+          </div>
+          <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
+            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Interest Coverage</p>
+            <MetricBar peers={PEERS} metricKey="interestCoverage" format={v => `${v.toFixed(1)}x`} />
+          </div>
+          <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
+            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Revenue Growth YoY</p>
+            <MetricBar peers={PEERS} metricKey="revenueGrowthPct" format={v => pct(v)} />
           </div>
         </div>
 
         {/* ── Acquisition Firepower ── */}
         {(() => {
-          const TARGET_LEVERAGE = 3.0;
           const firepowerData = PEERS
             .map(p => {
-              const ebitda = p.ebitda ?? 0;
-              const de = p.debtToEquity ?? 0;
-              const headroom = Math.max(0, TARGET_LEVERAGE - de);
-              const fp = ebitda > 0 ? ebitda * headroom : 0;
-              return { symbol: p.symbol, name: p.name, ebitda, de, headroom, firepower: fp, isTarget: p.symbol === TARGET };
+              const cash = p.cashAndCashEquivalents ?? 0;
+              const fcf = p.freeCashFlow ?? 0;
+              const fp = cash + Math.max(fcf * 1.5, 0);
+              return { symbol: p.symbol, name: p.name, cash, fcf, firepower: fp, isTarget: p.symbol === TARGET };
             })
             .filter(d => d.firepower > 0)
             .sort((a, b) => b.firepower - a.firepower);
@@ -302,7 +323,7 @@ export function PeerBenchmarkMockup() {
                 <div>
                   <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Acquisition Firepower</p>
                   <p className="text-xs text-[#64748b]">
-                    {'Estimated M&A capacity based on EBITDA and leverage headroom (target: '}{TARGET_LEVERAGE.toFixed(1)}{'x D/E ceiling)'}
+                    Estimated M&A capacity based on cash on hand plus sustainable free cash flow
                   </p>
                 </div>
               </div>
@@ -332,13 +353,13 @@ export function PeerBenchmarkMockup() {
                           </span>
                         </div>
                       </div>
-                      <div className="shrink-0 text-right w-32">
+                      <div className="shrink-0 text-right w-40">
                         <span className="text-[10px] font-mono text-[#64748b]">
-                          {fmt(d.ebitda)}{' EBITDA'}
+                          {fmt(d.cash)}{' cash'}
                         </span>
-                        <span className="text-[10px] text-[#475569] mx-1">{'\u00d7'}</span>
+                        <span className="text-[10px] text-[#475569] mx-1">+</span>
                         <span className="text-[10px] font-mono text-[#64748b]">
-                          {d.headroom.toFixed(1)}{'x'}
+                          {fmt(Math.max(d.fcf * 1.5, 0))}{' (1.5\u00d7 FCF)'}
                         </span>
                       </div>
                     </div>
@@ -347,7 +368,7 @@ export function PeerBenchmarkMockup() {
               </div>
 
               <p className="text-[10px] text-[#475569] mt-3 italic">
-                {'Firepower = EBITDA \u00d7 (3.0x ceiling \u2013 current D/E). Assumes incremental debt capacity only; excludes cash on hand.'}
+                {'Firepower = Cash + 1.5 \u00d7 max(FCF, 0). Estimates near-term acquisition capacity from existing resources.'}
               </p>
             </div>
           );
@@ -361,15 +382,19 @@ export function PeerBenchmarkMockup() {
                 <tr className="border-b border-[#2a3a4e]">
                   <th className="text-left py-3 px-3 text-[10px] uppercase tracking-widest text-[#f97316] font-semibold sticky left-0 bg-[#1a2332] z-10">Company</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Revenue</th>
+                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Rev Grw</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">EBITDA</th>
+                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">FCF</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Gross %</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Op %</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Net %</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Mkt Cap</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">P/E</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">EV/EBITDA</th>
+                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">ROIC</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">ROE</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">D/E</th>
+                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Int Cov</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Current</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Employees</th>
                 </tr>
@@ -389,7 +414,12 @@ export function PeerBenchmarkMockup() {
                         <p className="text-[10px] text-[#475569] truncate max-w-[120px]">{p.name}</p>
                       </td>
                       <td className={`py-2.5 px-3 text-right ${cellBase} text-[#e2e8f0]`}>{fmt(p.revenue)}</td>
+                      <td className={`py-2.5 px-3 text-right ${cellBase} ${negClass(p.revenueGrowthPct)}`}>{pct(p.revenueGrowthPct)}</td>
                       <td className={`py-2.5 px-3 text-right ${cellBase} ${negClass(p.ebitda)}`}>{fmt(p.ebitda)}</td>
+                      <td className="py-2.5 px-3 text-right">
+                        <span className={`${cellBase} ${negClass(p.freeCashFlow)}`}>{p.freeCashFlow != null ? fmt(p.freeCashFlow) : '\u2014'}</span>
+                        <RankBadge rank={getRank(PEERS, p.symbol, 'freeCashFlow')} total={validCount('freeCashFlow')} />
+                      </td>
                       <td className="py-2.5 px-3 text-right">
                         <span className={`${cellBase} text-[#e2e8f0]`}>{pct(p.grossMarginPct)}</span>
                         <RankBadge rank={getRank(PEERS, p.symbol, 'grossMarginPct')} total={validCount('grossMarginPct')} />
@@ -400,10 +430,15 @@ export function PeerBenchmarkMockup() {
                       <td className={`py-2.5 px-3 text-right ${cellBase} text-[#e2e8f0]`}>{p.peRatio != null ? `${p.peRatio.toFixed(1)}x` : '\u2014'}</td>
                       <td className={`py-2.5 px-3 text-right ${cellBase} text-[#e2e8f0]`}>{p.evToEbitda != null && p.evToEbitda > 0 ? `${p.evToEbitda.toFixed(1)}x` : '\u2014'}</td>
                       <td className="py-2.5 px-3 text-right">
+                        <span className={`${cellBase} ${negClass(p.roic)}`}>{pct(p.roic)}</span>
+                        <RankBadge rank={getRank(PEERS, p.symbol, 'roic')} total={validCount('roic')} />
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
                         <span className={`${cellBase} ${negClass(p.returnOnEquity)}`}>{pct(p.returnOnEquity)}</span>
                         <RankBadge rank={getRank(PEERS, p.symbol, 'returnOnEquity')} total={validCount('returnOnEquity')} />
                       </td>
                       <td className={`py-2.5 px-3 text-right ${cellBase} text-[#e2e8f0]`}>{ratio(p.debtToEquity)}</td>
+                      <td className={`py-2.5 px-3 text-right ${cellBase} ${negClass(p.interestCoverage)}`}>{p.interestCoverage != null ? `${p.interestCoverage.toFixed(1)}x` : '\u2014'}</td>
                       <td className={`py-2.5 px-3 text-right ${cellBase} text-[#e2e8f0]`}>{p.currentRatio != null ? `${p.currentRatio.toFixed(2)}x` : '\u2014'}</td>
                       <td className={`py-2.5 px-3 text-right ${cellBase} text-[#94a3b8]`}>{numFmt(p.employees)}</td>
                     </tr>
