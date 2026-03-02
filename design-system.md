@@ -132,6 +132,50 @@ The frontend will prefer structured fields if present, falling back to regex par
 
 ---
 
+## Peer Benchmark Data Contract (PeerFinancials)
+
+### New fields needed in `fetch-peer-data.mts`
+
+The `PeerFinancials` interface in `src/types/index.ts` has been expanded with new optional fields.
+All are marked optional (`?`) so the frontend won't break if they're not populated yet.
+The frontend will use them when available and fall back gracefully when they're null/undefined.
+
+#### Quick wins (data already fetched by existing API calls, just not extracted):
+
+| Field | Source | Notes |
+|-------|--------|-------|
+| `cashAndCashEquivalents` | `balance-sheet-statement.cashAndCashEquivalents` | Already fetched in fetch-peer-data balance sheet call |
+| `totalDebt` | `balance-sheet-statement.totalDebt` | Already fetched in fetch-peer-data balance sheet call |
+| `interestCoverage` | `key-metrics.interestCoverage` | Already in key-metrics response, just not extracted |
+| `roic` | `key-metrics.roic` | Already in key-metrics response, just not extracted |
+| `ebitdaMarginPct` | Computed: `ebitda / revenue * 100` | Both fields already available |
+
+#### Small backend changes (new fetch or limit change):
+
+| Field | Source | Change needed |
+|-------|--------|---------------|
+| `revenueGrowthPct` | `income-statement` with `limit: 2` | Change from `limit: 1` to `limit: 2` for peers, compute `(year0 - year1) / year1 * 100` |
+| `freeCashFlow` | `cashflow-statement` | Add `cashflow-statement` fetch for peers (already done for target in analyze-company). Compute: `operatingCashFlow - capitalExpenditure` |
+| `acquisitionsNet` | `cashflow-statement.acquisitionsNet` | Same cashflow-statement fetch as above |
+| `estimatedFirepower` | Computed | `cashAndCashEquivalents + max(freeCashFlow * 1.5, 0)` -- same formula as analyze-company.mts line 502 |
+
+#### Priority order for implementation:
+1. **cashAndCashEquivalents + totalDebt** (just extract from existing balance sheet response)
+2. **interestCoverage + roic** (just extract from existing key-metrics response)
+3. **ebitdaMarginPct** (compute from existing ebitda + revenue)
+4. **freeCashFlow + acquisitionsNet** (add cashflow-statement fetch for peers)
+5. **revenueGrowthPct** (change income-statement limit to 2)
+6. **estimatedFirepower** (compute from cash + FCF once both available)
+
+#### How the frontend uses these new fields:
+
+- **Acquisition Firepower section**: Horizontal bar chart ranking peers by `estimatedFirepower` (currently approximated using `EBITDA * leverage headroom`; will switch to real formula once `cashAndCashEquivalents` + `freeCashFlow` are available)
+- **Comprehensive table**: Will add columns for FCF, Interest Coverage, ROIC, Revenue Growth when populated
+- **Metric bars**: Will add small-multiple bars for FCF and ROIC
+- **Valuation scatter**: Can switch to ROIC vs EV/EBITDA for M&A effectiveness view
+
+---
+
 ## File Reference
 
 | File | Owner | Purpose |

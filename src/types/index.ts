@@ -199,6 +199,8 @@ export interface PeerFinancials {
   symbol: string;
   name: string;
   logo: string;
+
+  // ── Existing fields (already populated by fetch-peer-data) ──
   revenue: number;
   revenueFormatted?: string;
   grossProfit: number;
@@ -218,6 +220,53 @@ export interface PeerFinancials {
   debtToEquity?: number;
   currentRatio?: number;
   employees?: number;
+
+  // ── NEW: Ability to Acquire (Financial Strength) ──────────────
+  // BACKEND NOTE (Claude Code): These fields come from FMP APIs that
+  // fetch-peer-data already calls. Most just need to be extracted from
+  // the existing response and passed through.
+
+  /** Free Cash Flow = operatingCashFlow - capitalExpenditure.
+   *  Source: FMP cashflow-statement (need to add this fetch for peers). */
+  freeCashFlow?: number;
+
+  /** Cash on hand. Source: FMP balance-sheet-statement.cashAndCashEquivalents.
+   *  Already fetched in fetch-peer-data (balance sheet call), just not passed through. */
+  cashAndCashEquivalents?: number;
+
+  /** Total debt. Source: FMP balance-sheet-statement.totalDebt.
+   *  Already fetched in fetch-peer-data (balance sheet call), just not passed through. */
+  totalDebt?: number;
+
+  /** Interest Coverage = EBIT / interestExpense. Source: FMP key-metrics.interestCoverage.
+   *  Already in the key-metrics API response, just not extracted. */
+  interestCoverage?: number;
+
+  /** EBITDA Margin = ebitda / revenue. Can be computed on frontend if ebitda + revenue exist,
+   *  but cleaner to pass through. */
+  ebitdaMarginPct?: number;
+
+  // ── NEW: M&A Strategy (Growth & Valuation) ────────────────────
+
+  /** YoY revenue growth %. Source: fetch 2 years of income-statement instead of 1,
+   *  compute (year0 - year1) / year1 * 100. Currently only fetched for target company. */
+  revenueGrowthPct?: number;
+
+  /** Return on Invested Capital. Source: FMP key-metrics.roic.
+   *  Already in the key-metrics API response, just not extracted. */
+  roic?: number;
+
+  /** Net acquisitions spend (most recent year). Source: FMP cashflow-statement.acquisitionsNet.
+   *  Need to add cashflow-statement fetch for peers. Already fetched for target in analyze-company. */
+  acquisitionsNet?: number;
+
+  // ── NEW: Computed Firepower ───────────────────────────────────
+
+  /** Estimated acquisition firepower.
+   *  Formula: cashAndCashEquivalents + max(freeCashFlow * 1.5, 0)
+   *  This matches the formula in analyze-company.mts for the target.
+   *  Can be computed on frontend if cash + FCF are provided, but cleaner server-side. */
+  estimatedFirepower?: number;
 }
 
 export interface GameState {
