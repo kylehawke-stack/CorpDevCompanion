@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { GameStateProvider, useGameState } from './context/GameStateContext.tsx';
 import { WelcomePage } from './pages/WelcomePage.tsx';
 import { PeerSelectionPage } from './pages/PeerSelectionPage.tsx';
@@ -6,9 +7,20 @@ import { BriefingPage } from './pages/BriefingPage.tsx';
 import { VotePage } from './pages/VotePage.tsx';
 import { TransitionPage } from './pages/TransitionPage.tsx';
 import { ResultsPage } from './pages/ResultsPage.tsx';
+import { BriefingMockup } from './pages/BriefingMockup.tsx';
 
 function AppRouter() {
   const { state } = useGameState();
+  const [hash, setHash] = useState(window.location.hash);
+
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // Show mockup when navigating to /#mockup
+  if (hash === '#mockup') return <BriefingMockup />;
 
   switch (state.phase) {
     case 'welcome':
