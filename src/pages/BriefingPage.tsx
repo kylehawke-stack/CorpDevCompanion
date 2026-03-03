@@ -256,7 +256,7 @@ export function BriefingPage() {
           <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-8 mb-10 text-center">
             <Spinner size="lg" />
             <p className="text-sm text-[#e2e8f0] mt-3">Generating strategic analysis...</p>
-            <p className="text-xs text-[#64748b] mt-1">AI is synthesizing earnings calls, analyst data, and competitive landscape</p>
+            <p className="text-xs text-[#64748b] mt-1">Synthesizing earnings calls, analyst data, and competitive landscape</p>
           </div>
         ) : null}
 

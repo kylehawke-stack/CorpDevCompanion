@@ -132,9 +132,9 @@ export function WelcomePage() {
                 <ol className="text-sm text-muted space-y-1 list-decimal list-inside">
                   <li>We ingest financials, earnings calls, and analyst data</li>
                   <li>Vote on strategic priorities to establish M&A direction</li>
-                  <li>AI generates market segments and product categories to compare</li>
+                  <li>The system generates market segments and product categories to compare</li>
                   <li>Vote to narrow down the most promising areas</li>
-                  <li>AI generates specific company targets for final ranking</li>
+                  <li>The system generates specific company targets for final ranking</li>
                 </ol>
               </div>
 

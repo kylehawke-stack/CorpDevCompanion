@@ -34,7 +34,7 @@ export function StrategicNarrative({ rankings, totalVotes, sessionName, strategi
     return (
       <div className="text-center py-6">
         <p className="text-sm text-muted mb-3">
-          Generate an AI-powered strategic briefing based on the voting results.
+          Generate a strategic briefing based on the voting results.
         </p>
         <Button onClick={handleGenerate} disabled={rankings.length === 0}>
           Generate Strategic Briefing

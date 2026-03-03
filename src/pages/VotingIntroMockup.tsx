@@ -18,8 +18,8 @@ const STEPS = [
   {
     number: 2,
     title: 'Market Segments & Categories',
-    subtitle: 'AI-generated, ~50 votes',
-    description: 'Based on your strategic priorities, AI generates relevant market segments and product categories to explore. Compare pairs to identify where to hunt.',
+    subtitle: 'System-generated, ~50 votes',
+    description: 'Based on your strategic priorities, CorpDev Companion generates relevant market segments and product categories to explore. Compare pairs to identify where to hunt.',
     examples: ['Smart Home Appliances', 'Commercial Kitchen Equipment', 'DTC Health & Wellness', 'Pet Care Technology'],
     color: '#3b82f6',
     outputLabel: 'Outputs',
@@ -28,8 +28,8 @@ const STEPS = [
   {
     number: 3,
     title: 'Specific Companies',
-    subtitle: 'AI-generated, open-ended',
-    description: 'From your top segments and categories, AI identifies specific acquisition targets. Compare companies head-to-head to build a ranked shortlist.',
+    subtitle: 'System-generated, open-ended',
+    description: 'From your top segments and categories, CorpDev Companion identifies specific acquisition targets. Compare companies head-to-head to build a ranked shortlist.',
     examples: ['Traeger Inc.', 'iRobot Corp.', 'Lovesac Company', 'Breville Group'],
     color: '#10b981',
     outputLabel: 'Outputs',
