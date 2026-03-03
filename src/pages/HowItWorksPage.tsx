@@ -17,7 +17,7 @@ const ZONES = [
         badge: 'System',
         badgeColor: '#64748b',
         description:
-          "CorpDev Companion ingests financial statements, earnings calls, analyst coverage, and competitive data to build a complete picture of the company\u2019s M&A starting position \u2014 revenue trajectory, margins, leverage, acquisition history, and available firepower.",
+          "Corp Dev Companion ingests your company\u2019s financial statements, earnings calls, analyst coverage, and competitive data to build a complete picture of the company\u2019s M&A starting position \u2014 revenue trajectory, margins, leverage, acquisition history, and available firepower.",
         outputs: ['Financial highlights', 'Revenue mix breakdown', 'Acquisition firepower estimate', 'Earnings call insights', 'Analyst perspectives'],
       },
       {
@@ -27,8 +27,8 @@ const ZONES = [
         badge: 'System',
         badgeColor: '#64748b',
         description:
-          'Selected competitors are benchmarked across every key metric \u2014 revenue, margins, valuation, returns on capital, leverage, and acquisition firepower. This shows where the company leads, lags, and has room to grow through M&A.',
-        outputs: ['Peer financial comparison', 'Relative valuation analysis', 'Competitive firepower ranking', 'Key takeaways'],
+          'Selected competitors are benchmarked across the same key metric \u2014 revenue, margins, valuation, returns on capital, leverage, and acquisition firepower. This shows where the company leads, lags, and has room to grow through M&A.',
+        outputs: ['Peer financial comparison', 'Relative valuation analysis', 'Historical acquisitiveness', 'Competitive firepower ranking'],
       },
     ],
   },
@@ -42,23 +42,23 @@ const ZONES = [
         title: 'Strategic Priorities',
         badge: 'Team Input',
         badgeColor: '#f97316',
-        voteInfo: '~25 comparisons, ~2 min',
+        voteInfo: 'Decide how you want to use M&A',
         description:
           'Your team votes on 6 strategic dimensions using quick pairwise comparisons \u2014 growth objective, target profile, risk posture, integration approach, capability priority, and strategic proximity. Each vote is simply choosing between two options.',
         outputs: ['Force-ranked strategic priorities', 'Positioning on each spectrum', 'Team consensus baseline'],
-        flowNote: 'Your strategic priorities feed directly into Step 4 to generate relevant market segments.',
+        flowNote: 'Your strategic priorities inform Step 4.',
       },
       {
         num: 4,
         shortLabel: 'Markets',
-        title: 'Market Segments',
+        title: 'Market Segments and Product Categories',
         badge: 'Team Input',
         badgeColor: '#f97316',
-        voteInfo: '~50 comparisons, ~5 min',
+        voteInfo: 'Prioritize and narrow down where you use M&A',
         description:
-          'Based on your strategic priorities, CorpDev Companion generates relevant market segments and product categories. Your team compares pairs to identify the most promising areas for acquisition \u2014 narrowing a broad landscape into focused hunting grounds.',
+          'Based on your strategic priorities, Corp Dev Companion generates relevant market segments and product categories. Your team compares pairs to identify the most promising areas for acquisition. New adjacencies are injected real-time based on your voting.',
         outputs: ['Ranked market segments', 'Ranked product categories', 'Refined search parameters'],
-        flowNote: 'Your top segments and categories feed into Step 5 to identify specific companies.',
+        flowNote: 'Your top segments and categories feed into Step 5.',
       },
       {
         num: 5,
@@ -66,16 +66,16 @@ const ZONES = [
         title: 'Target Companies',
         badge: 'Team Input',
         badgeColor: '#f97316',
-        voteInfo: 'Open-ended, add more anytime',
+        voteInfo: 'Prioritize and rank the universe of relevant targets',
         description:
-          'From your top segments and categories, CorpDev Companion identifies specific acquisition targets. Your team compares companies head-to-head to build a ranked shortlist grounded in both strategic alignment and team consensus.',
+          'From your top segments and categories, Corp Dev Companion identifies specific acquisition targets. Your team compares companies head-to-head to build a ranked shortlist grounded in both strategic alignment and team consensus.',
         outputs: ['Ranked target companies', 'Head-to-head comparison data', 'Consensus-driven shortlist'],
-        flowNote: 'Your ranked targets become the foundation of the final strategic brief.',
+        flowNote: 'Your ranked targets are aligned with the team prior to outreach.',
       },
     ],
   },
   {
-    zoneLabel: 'THE DELIVERABLE',
+    zoneLabel: 'SUMMARIZE AND SYNTHESIZE THE RESULT',
     color: '#22c55e',
     steps: [
       {
@@ -85,24 +85,24 @@ const ZONES = [
         badge: 'Output',
         badgeColor: '#22c55e',
         description:
-          'All votes are synthesized into a comprehensive strategic brief \u2014 force-ranked priorities, market focus areas, and target companies, informed by external M&A best practices. This is the artifact your team takes into deal discussions.',
-        outputs: ['Force-ranked results across all tiers', 'Strategic narrative', 'M&A best practices alignment'],
+          'All votes are synthesized into a comprehensive strategic brief which is informed by your personalized starting point, team alignment, and proven M&A best practices. This is your M&A strategy \u2014 a north star to guide all deal discussions.',
+        outputs: ['Force-ranked priorities', 'Aligned executive team', 'M&A "North Star"', 'Strategic narrative for deal discussions', 'M&A best practices'],
       },
     ],
   },
 ];
 
 const PAIRWISE_BENEFITS = [
-  { label: 'Fast', text: 'Each comparison takes a few seconds, not minutes' },
-  { label: 'Intuitive', text: 'No complex scoring rubrics or forced ranking' },
-  { label: 'Rigorous', text: 'Bradley-Terry model produces statistically valid rankings from simple inputs' },
-  { label: 'Collaborative', text: 'Multiple team members vote independently, results aggregate automatically' },
+  { label: 'Fast', text: 'Each comparison takes a few seconds, not an hour long meeting' },
+  { label: 'Intuitive', text: 'No complex scoring rubrics subject to individual bias' },
+  { label: 'Rigorous', text: 'Proven model ("Bradley-Terry") produces statistically valid rankings from many votes' },
+  { label: 'Collaborative', text: 'Multiple team members vote independently, results aggregate real-time' },
 ];
 
 const CONFIDENCE_THRESHOLDS = [
-  { votes: '25+', label: 'Directional' },
-  { votes: '50+', label: 'Strong signal' },
-  { votes: '100+', label: 'High confidence' },
+  { votes: '25+ votes / 2 people', label: 'Directional' },
+  { votes: '50+ votes / 3 people', label: 'Strong signal' },
+  { votes: '100+ votes / 5 people', label: 'High confidence' },
 ];
 
 // ── Background fetch status labels ──────────────────────────────────────
@@ -226,12 +226,12 @@ export function HowItWorksPage() {
             How It Works
           </p>
           <h1 className="text-3xl font-bold text-[#f1f5f9] mb-3 text-balance">
-            From financial analysis to M&A shortlist in six steps
+            Expert guidance and team alignment on your M&A strategy
           </h1>
           <p className="text-sm text-[#94a3b8] max-w-2xl mx-auto leading-relaxed text-pretty">
-            CorpDev Companion combines rigorous financial analysis with collaborative
-            team input to produce a consensus-driven acquisition strategy. Here is the
-            full process.
+            Corp Dev Companion combines rigorous financial and market analysis with
+            collaborative team input to produce a consensus-driven acquisition strategy.
+            Here is the full process.
           </p>
         </div>
 
@@ -318,11 +318,11 @@ export function HowItWorksPage() {
               Why Pairwise Comparisons?
             </p>
           </div>
-          <h2 className="text-lg font-bold text-[#e2e8f0] mb-2">Making the complex simple</h2>
+          <h2 className="text-lg font-bold text-[#e2e8f0] mb-2">Make the complex simple</h2>
           <p className="text-sm text-[#94a3b8] leading-relaxed mb-5">
-            Instead of asking people to rank a long list (which is slow and cognitively
-            exhausting), we show two options at a time. Just pick the one you think matters
-            more. That is it.
+            Instead of endless meetings, Powerpoints, and debates, M&A strategy is boiled
+            down to something super simple: pick the better of two options... many times.
+            Proven statistical models do the rest.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -401,7 +401,7 @@ export function HowItWorksPage() {
               <p className="text-[10px] text-[#64748b] uppercase tracking-widest mb-1">Vote Confidence</p>
               {CONFIDENCE_THRESHOLDS.map((t, i) => (
                 <div key={t.votes} className="flex items-center gap-3">
-                  <span className="font-mono text-sm font-bold text-[#e2e8f0] w-12 text-right">{t.votes}</span>
+                  <span className="font-mono text-[11px] font-bold text-[#e2e8f0] w-40 text-right shrink-0">{t.votes}</span>
                   <div className="flex-1 h-2 bg-[#0f1419] rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all"
@@ -466,11 +466,11 @@ export function HowItWorksPage() {
             disabled={!!fetchError}
             className="px-8 py-3 bg-[#f97316] hover:bg-[#ea580c] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors text-sm"
           >
-            {fetchReady ? 'Continue to Peer Selection' : 'Continue'}
+            {fetchReady ? 'Begin Step 3: Strategic Priorities' : 'Continue'}
           </button>
           <p className="text-[11px] text-[#64748b] mt-2">
             {fetchReady
-              ? 'Step 1 complete. Select competitors to benchmark against.'
+              ? '6 dimensions, ~25 comparisons, ~5 minutes per person'
               : 'Analysis is running in the background. You can continue when ready.'}
           </p>
         </div>
