@@ -1,4 +1,5 @@
 import type { Context } from "@netlify/functions";
+import { cachedFmpFetch } from "./lib/fmpCache.js";
 
 interface RequestBody {
   symbol: string;
@@ -45,15 +46,12 @@ export default async function handler(req: Request, _context: Context) {
     let targetSic = "";
     let targetSicGroup = ""; // first 3 digits for adjacent matching
     try {
-      const sicRes = await fetch(
-        `https://financialmodelingprep.com/stable/industry-classification-search?symbol=${encodeURIComponent(symbol)}&apikey=${fmpKey}`
+      const sicData: SicResult[] | null = await cachedFmpFetch(
+        "industry-classification-search", { symbol }, fmpKey
       );
-      if (sicRes.ok) {
-        const sicData: SicResult[] = await sicRes.json();
-        if (Array.isArray(sicData) && sicData.length > 0) {
-          targetSic = sicData[0].sicCode;
-          targetSicGroup = targetSic.slice(0, 3);
-        }
+      if (Array.isArray(sicData) && sicData.length > 0) {
+        targetSic = sicData[0].sicCode;
+        targetSicGroup = targetSic.slice(0, 3);
       }
     } catch { /* ignore */ }
 
@@ -61,11 +59,10 @@ export default async function handler(req: Request, _context: Context) {
     const sicSymbols = new Map<string, number>(); // symbol → relevance score
     if (targetSic) {
       try {
-        const res = await fetch(
-          `https://financialmodelingprep.com/stable/industry-classification-search?sicCode=${encodeURIComponent(targetSic)}&apikey=${fmpKey}`
+        const data: SicResult[] | null = await cachedFmpFetch(
+          "industry-classification-search", { sicCode: targetSic }, fmpKey
         );
-        if (res.ok) {
-          const data: SicResult[] = await res.json();
+        if (Array.isArray(data)) {
           for (const item of data) {
             if (item.symbol && item.symbol !== symbol) {
               sicSymbols.set(item.symbol, 4); // exact SIC = highest relevance
@@ -87,11 +84,10 @@ export default async function handler(req: Request, _context: Context) {
       // Fetch up to 5 adjacent SIC codes in parallel
       const adjacentRequests = adjacentCodes.slice(0, 5).map(async (sic) => {
         try {
-          const res = await fetch(
-            `https://financialmodelingprep.com/stable/industry-classification-search?sicCode=${encodeURIComponent(sic)}&apikey=${fmpKey}`
+          const data: SicResult[] | null = await cachedFmpFetch(
+            "industry-classification-search", { sicCode: sic }, fmpKey
           );
-          if (!res.ok) return;
-          const data: SicResult[] = await res.json();
+          if (!Array.isArray(data)) return;
           for (const item of data) {
             if (item.symbol && item.symbol !== symbol && !sicSymbols.has(item.symbol)) {
               sicSymbols.set(item.symbol, 3); // adjacent SIC
@@ -105,15 +101,10 @@ export default async function handler(req: Request, _context: Context) {
     // === Step 4: Also fetch FMP stock peers (market-cap-based) ===
     const peerSymbols = new Set<string>();
     try {
-      const peersRes = await fetch(
-        `https://financialmodelingprep.com/stable/stock-peers?symbol=${encodeURIComponent(symbol)}&apikey=${fmpKey}`
-      );
-      if (peersRes.ok) {
-        const peersData = await peersRes.json();
-        if (Array.isArray(peersData)) {
-          for (const p of peersData) {
-            if (p.symbol && p.symbol !== symbol) peerSymbols.add(p.symbol);
-          }
+      const peersData = await cachedFmpFetch("stock-peers", { symbol }, fmpKey);
+      if (Array.isArray(peersData)) {
+        for (const p of peersData) {
+          if (p.symbol && p.symbol !== symbol) peerSymbols.add(p.symbol);
         }
       }
     } catch { /* ignore */ }
@@ -125,11 +116,7 @@ export default async function handler(req: Request, _context: Context) {
     const candidateList = Array.from(allCandidates).slice(0, 40);
     const profileResults = await Promise.allSettled(
       candidateList.map(async (s) => {
-        const res = await fetch(
-          `https://financialmodelingprep.com/stable/profile?symbol=${encodeURIComponent(s)}&apikey=${fmpKey}`
-        );
-        if (!res.ok) return null;
-        const data = await res.json();
+        const data = await cachedFmpFetch("profile", { symbol: s }, fmpKey);
         return Array.isArray(data) && data.length > 0 ? data[0] : null;
       })
     );

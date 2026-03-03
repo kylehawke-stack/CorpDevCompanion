@@ -41,8 +41,6 @@ const ZONES = [
         num: 3,
         shortLabel: 'Strategy',
         title: 'Strategic Priorities',
-        badge: 'Team Input',
-        badgeColor: '#f97316',
         voteInfo: 'Decide how you want to use M&A',
         description:
           'Your team votes on 6 strategic dimensions using quick pairwise comparisons \u2014 growth objective, target profile, risk posture, integration approach, capability priority, and strategic proximity. Each vote is simply choosing between two options.',
@@ -53,8 +51,6 @@ const ZONES = [
         num: 4,
         shortLabel: 'Markets',
         title: 'Market Segments and Product Categories',
-        badge: 'Team Input',
-        badgeColor: '#f97316',
         voteInfo: 'Prioritize and narrow down where you use M&A',
         description:
           'Based on your strategic priorities, Corp Dev Companion generates relevant market segments and product categories. Your team compares pairs to identify the most promising areas for acquisition. New adjacencies are injected real-time based on your voting.',
@@ -65,8 +61,6 @@ const ZONES = [
         num: 5,
         shortLabel: 'Targets',
         title: 'Target Companies',
-        badge: 'Team Input',
-        badgeColor: '#f97316',
         voteInfo: 'Prioritize and rank the universe of relevant targets',
         description:
           'From your top segments and categories, Corp Dev Companion identifies specific acquisition targets. Your team compares companies head-to-head to build a ranked shortlist grounded in both strategic alignment and team consensus.',
@@ -119,7 +113,7 @@ const FETCH_STAGES = [
 // ── Component ───────────────────────────────────────────────────────────
 
 export function HowItWorksPage() {
-  const { state, dispatch } = useGameState();
+  const { state, dispatch, setBriefingPromise } = useGameState();
   const [fetchStage, setFetchStage] = useState(0);
   const [fetchReady, setFetchReady] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -154,25 +148,8 @@ export function HowItWorksPage() {
 
       setFetchStage(3);
 
-      if (peers.length > 0) {
-        dispatch({ type: 'SET_AVAILABLE_PEERS', peers, promptData: data.promptData });
-
-        // Wait for briefing in background
-        briefingPromise.then((briefing) => {
-          const allHighlights = [...highlights, ...(briefing.highlights ?? [])];
-          dispatch({
-            type: 'SET_STRATEGIC_IDEAS',
-            ideas: briefing.ideas,
-            highlights: allHighlights,
-            revenueSegments,
-            competitorProfiles,
-            promptData: data.promptData,
-          });
-        }).catch((err) => {
-          console.error('Background briefing generation failed:', err);
-        });
-      } else {
-        const briefing = await briefingPromise;
+      // Store the briefing promise so downstream pages can await it
+      const trackedBriefing = briefingPromise.then((briefing) => {
         const allHighlights = [...highlights, ...(briefing.highlights ?? [])];
         dispatch({
           type: 'SET_STRATEGIC_IDEAS',
@@ -182,6 +159,19 @@ export function HowItWorksPage() {
           competitorProfiles,
           promptData: data.promptData,
         });
+        return briefing;
+      });
+      setBriefingPromise(trackedBriefing);
+
+      if (peers.length > 0) {
+        dispatch({ type: 'SET_AVAILABLE_PEERS', peers, promptData: data.promptData });
+        // Briefing resolves in background via trackedBriefing — no need to await here
+        trackedBriefing.catch((err) => {
+          console.error('Background briefing generation failed:', err);
+        });
+      } else {
+        // No peers — wait for briefing before proceeding
+        await trackedBriefing;
       }
 
       setFetchStage(4);
@@ -211,7 +201,7 @@ export function HowItWorksPage() {
     }
   };
 
-  const sessionCode = (state as Record<string, unknown>).sessionId as string | undefined ?? 'AFBK3UCR';
+  const sessionCode = (state as unknown as Record<string, unknown>).sessionId as string | undefined ?? 'AFBK3UCR';
 
   function handleCopyLink() {
     const url = `${window.location.origin}?session=${sessionCode}`;
@@ -278,12 +268,14 @@ export function HowItWorksPage() {
                           )}
                         </div>
                       </div>
-                      <span
-                        className="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full shrink-0"
-                        style={{ color: step.badgeColor, backgroundColor: `${step.badgeColor}18` }}
-                      >
-                        {step.badge}
-                      </span>
+                      {'badge' in step && (
+                        <span
+                          className="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full shrink-0"
+                          style={{ color: step.badgeColor, backgroundColor: `${step.badgeColor}18` }}
+                        >
+                          {step.badge}
+                        </span>
+                      )}
                     </div>
 
                     {/* Description */}

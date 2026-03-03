@@ -1,6 +1,6 @@
 import type { Tier } from '../../types/index.ts';
 
-type FilterOption = Tier | 'all';
+type FilterOption = Tier | 'all' | 'segments_and_categories';
 
 interface TierFilterProps {
   selected: FilterOption;
@@ -8,10 +8,8 @@ interface TierFilterProps {
 }
 
 const options: { value: FilterOption; label: string }[] = [
-  { value: 'all', label: 'All Tiers' },
   { value: 'strategic_priority', label: 'Strategic Priorities' },
-  { value: 'market_segment', label: 'Market Segments' },
-  { value: 'product_category', label: 'Product Categories' },
+  { value: 'segments_and_categories', label: 'Market Segments / Product Categories' },
   { value: 'specific_company', label: 'Specific Companies' },
 ];
 

@@ -16,12 +16,6 @@ export function VotePage() {
     }
   };
 
-  const stepLabel = state.phase === 'voting_step1'
-    ? 'Step 3: Strategic Priorities'
-    : state.phase === 'voting_step2'
-      ? 'Step 4: Market Segments'
-      : 'Step 5: Target Companies';
-
   return (
     <div className="min-h-screen bg-surface-base">
       {/* Top bar */}
@@ -30,22 +24,13 @@ export function VotePage() {
           <div className="flex items-center gap-4">
             <div>
               <h1 className="text-lg font-semibold text-heading">CorpDev Companion</h1>
-              <p className="text-xs text-muted">{state.sessionName} &middot; {stepLabel}</p>
+              <p className="text-xs text-muted">{state.sessionName}</p>
             </div>
             <div className="hidden md:block">
               <ProgressTracker currentStep={phaseToStep(state.phase)} />
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-right">
-              <span className="text-sm font-medium text-body">
-                {state.ideas.length} opportunities
-              </span>
-              <span className="text-dimmed mx-2">|</span>
-              <span className="text-sm text-muted">
-                {state.totalVoteCount} votes
-              </span>
-            </div>
             <Button variant="ghost" size="sm" onClick={handleNewSession}>
               New Session
             </Button>

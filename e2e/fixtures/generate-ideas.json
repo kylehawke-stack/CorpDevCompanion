@@ -1,0 +1,52 @@
+{
+  "ideas": [
+    {
+      "id": "seed-ms-1",
+      "title": "Commercial Foodservice Equipment",
+      "tier": "market_segment",
+      "blurb": ["**Restaurants and hotels** need the same products, sold differently", "B2B channel offers **higher margins** than retail", "$12B market growing 6% annually with fragmented competitors"],
+      "source": "seed",
+      "createdAt": 1709500000000
+    },
+    {
+      "id": "seed-ms-2",
+      "title": "Premium Kitchen Appliances",
+      "tier": "market_segment",
+      "blurb": ["**Trade up** consumers willing to pay 2-3x for quality", "Higher margins and brand loyalty", "Growing demand for connected kitchen devices"],
+      "source": "seed",
+      "createdAt": 1709500000001
+    },
+    {
+      "id": "seed-ms-3",
+      "title": "Personal Care & Wellness",
+      "tier": "market_segment",
+      "blurb": ["**Adjacent consumer category** with similar distribution", "Hair care and grooming appliances", "Leverages existing retail relationships"],
+      "source": "seed",
+      "createdAt": 1709500000002
+    },
+    {
+      "id": "seed-pc-1",
+      "title": "Smart Home Integration",
+      "tier": "product_category",
+      "blurb": ["**Connected appliances** with app control and automation", "IoT capability gap vs. SharkNinja", "Requires technology acquisition or partnership"],
+      "source": "seed",
+      "createdAt": 1709500000003
+    },
+    {
+      "id": "seed-pc-2",
+      "title": "Outdoor Cooking & Grilling",
+      "tier": "product_category",
+      "blurb": ["**Backyard and patio** appliance category expansion", "Seasonal but high-margin product lines", "Natural extension of kitchen expertise"],
+      "source": "seed",
+      "createdAt": 1709500000004
+    },
+    {
+      "id": "seed-pc-3",
+      "title": "Water Filtration Systems",
+      "tier": "product_category",
+      "blurb": ["**Recurring revenue** from filter replacements", "Consumer health and wellness trend", "Complements existing kitchen product portfolio"],
+      "source": "seed",
+      "createdAt": 1709500000005
+    }
+  ]
+}

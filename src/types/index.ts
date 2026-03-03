@@ -221,6 +221,13 @@ export interface PeerFinancials {
   /** From balance-sheet-statement: totalDebt */
   totalDebt?: number;
   totalDebtFormatted?: string;
+  /** From balance-sheet-statement: goodwill */
+  goodwill?: number;
+  goodwillFormatted?: string;
+  /** From balance-sheet-statement: totalAssets */
+  totalAssets?: number;
+  /** Computed: goodwill / totalAssets * 100 */
+  goodwillToAssetsPct?: number;
   /** From key-metrics: interestCoverage */
   interestCoverage?: number;
   /** From key-metrics: roic (return on invested capital) */
@@ -232,15 +239,20 @@ export interface PeerFinancials {
   /** From cashflow-statement: operatingCashFlow - capitalExpenditure */
   freeCashFlow?: number;
   freeCashFlowFormatted?: string;
-  /** From cashflow-statement: acquisitionsNet */
+  /** From cashflow-statement: acquisitionsNet (most recent year) */
   acquisitionsNet?: number;
   acquisitionsNetFormatted?: string;
+  /** Sum of acquisitionsNet across up to 3 years of cash flow data */
+  acquisitions3YrTotal?: number;
+  acquisitions3YrTotalFormatted?: string;
+  /** Per-year acquisition activity */
+  acquisitionsByYear?: { year: string; amount: number }[];
   /** Computed: totalCurrentAssets - totalCurrentLiabilities */
   netWorkingCapital?: number;
   netWorkingCapitalFormatted?: string;
   /** Dynamic FCF multiplier based on leverage headroom (0x at D/E ceiling, 3x at zero debt) */
   fcfMultiplier?: number;
-  /** Computed: max(NWC, 0) + max(FCF * fcfMultiplier, 0) */
+  /** Computed: cash + max(FCF * fcfMultiplier, 0) */
   estimatedFirepower?: number;
   estimatedFirepowerFormatted?: string;
 }

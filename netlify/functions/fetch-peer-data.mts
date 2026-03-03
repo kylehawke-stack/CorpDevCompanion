@@ -1,4 +1,5 @@
 import type { Context } from "@netlify/functions";
+import { cachedFmpFetch } from "./lib/fmpCache.js";
 
 interface RequestBody {
   symbols: string[];
@@ -64,17 +65,6 @@ function formatCurrency(val: number): string {
 
 function pct(val: number): string {
   return `${(val * 100).toFixed(1)}%`;
-}
-
-async function fmpFetch(endpoint: string, params: Record<string, string>, fmpKey: string): Promise<any | null> {
-  try {
-    const qs = new URLSearchParams({ ...params, apikey: fmpKey });
-    const res = await fetch(`https://financialmodelingprep.com/stable/${endpoint}?${qs}`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -250,14 +240,14 @@ export default async function handler(req: Request, _context: Context) {
           pressReleasesData,
           cashflowData,
         ] = await Promise.all([
-          fmpFetch("profile", { symbol }, fmpKey),
-          fmpFetch("income-statement", { symbol, period: "annual", limit: "2" }, fmpKey),
-          fmpFetch("balance-sheet-statement", { symbol, period: "annual", limit: "1" }, fmpKey),
-          fmpFetch("key-metrics", { symbol, period: "annual", limit: "1" }, fmpKey),
-          fmpFetch("revenue-product-segmentation", { symbol, period: "annual" }, fmpKey),
-          fmpFetch("earning-call-transcript", { symbol, year: String(tYear), quarter: String(tQuarter) }, fmpKey),
-          fmpFetch("news/press-releases", { symbols: symbol, limit: "5" }, fmpKey),
-          fmpFetch("cash-flow-statement", { symbol, period: "annual", limit: "1" }, fmpKey),
+          cachedFmpFetch("profile", { symbol }, fmpKey),
+          cachedFmpFetch("income-statement", { symbol, period: "annual", limit: "2" }, fmpKey),
+          cachedFmpFetch("balance-sheet-statement", { symbol, period: "annual", limit: "1" }, fmpKey),
+          cachedFmpFetch("key-metrics", { symbol, period: "annual", limit: "1" }, fmpKey),
+          cachedFmpFetch("revenue-product-segmentation", { symbol, period: "annual" }, fmpKey),
+          cachedFmpFetch("earning-call-transcript", { symbol, year: String(tYear), quarter: String(tQuarter) }, fmpKey),
+          cachedFmpFetch("news/press-releases", { symbols: symbol, limit: "5" }, fmpKey),
+          cachedFmpFetch("cash-flow-statement", { symbol, period: "annual", limit: "3" }, fmpKey),
         ]);
 
         const profile = Array.isArray(profileData) && profileData.length > 0 ? profileData[0] : null;
@@ -265,7 +255,8 @@ export default async function handler(req: Request, _context: Context) {
         const incomePrior = Array.isArray(incomeData) && incomeData.length > 1 ? incomeData[1] : null;
         const balance = Array.isArray(balanceData) && balanceData.length > 0 ? balanceData[0] : null;
         const keyMetrics = Array.isArray(keyMetricsData) && keyMetricsData.length > 0 ? keyMetricsData[0] : null;
-        const cashflow = Array.isArray(cashflowData) && cashflowData.length > 0 ? cashflowData[0] : null;
+        const cashflowArr = Array.isArray(cashflowData) ? cashflowData : [];
+        const cashflow = cashflowArr.length > 0 ? cashflowArr[0] : null;
 
         if (!profile || !income) return null;
 
@@ -283,9 +274,11 @@ export default async function handler(req: Request, _context: Context) {
         const ebitda = income.ebitda ?? 0;
 
         // ── New fields: extract from already-fetched data ─────────────
-        // Balance sheet: cash & debt
+        // Balance sheet: cash, debt, goodwill, total assets
         const cash = balance?.cashAndCashEquivalents ?? undefined;
         const debt = balance?.totalDebt ?? undefined;
+        const goodwill = balance?.goodwill ?? undefined;
+        const totalAssets = balance?.totalAssets ?? undefined;
 
         // Net working capital: totalCurrentAssets - totalCurrentLiabilities
         const currentAssets = balance?.totalCurrentAssets;
@@ -296,7 +289,8 @@ export default async function handler(req: Request, _context: Context) {
 
         // Key metrics: interest coverage & ROIC
         const interestCoverage = keyMetrics?.interestCoverage || undefined;
-        const roic = keyMetrics?.roic != null ? keyMetrics.roic * 100 : undefined;
+        const roicRaw = keyMetrics?.roic ?? keyMetrics?.returnOnCapitalEmployed ?? undefined;
+        const roic = roicRaw != null ? roicRaw * 100 : undefined;
 
         // Computed: EBITDA margin
         const ebitdaMarginPct = revenue > 0 && ebitda ? (ebitda / revenue) * 100 : undefined;
@@ -307,22 +301,38 @@ export default async function handler(req: Request, _context: Context) {
           ? ((revenue - priorRevenue) / priorRevenue) * 100
           : undefined;
 
-        // Cashflow statement: FCF & acquisitions
+        // Cashflow statement: FCF (most recent year) & acquisitions (3-year sum)
         const operatingCashFlow = cashflow?.operatingCashFlow ?? 0;
         const capitalExpenditure = cashflow?.capitalExpenditure ?? 0;
         const fcf = cashflow ? operatingCashFlow - capitalExpenditure : undefined;
         const acquisitionsNet = cashflow?.acquisitionsNet ?? undefined;
 
-        // Dynamic leverage-adjusted firepower
-        // Uses NWC instead of cash, and a D/E-driven FCF multiplier instead of hardcoded 1.5x
+        // 3-year acquisition activity
+        const acquisitionsByYear: { year: string; amount: number }[] = [];
+        let acquisitions3YrTotal: number | undefined;
+        for (const cf of cashflowArr) {
+          if (cf.acquisitionsNet != null && cf.acquisitionsNet !== 0) {
+            const yr = cf.calendarYear ?? (cf.date ? String(cf.date).slice(0, 4) : '');
+            acquisitionsByYear.push({ year: yr, amount: cf.acquisitionsNet });
+          }
+        }
+        if (cashflowArr.length > 0) {
+          acquisitions3YrTotal = cashflowArr.reduce(
+            (sum: number, cf: Record<string, unknown>) => sum + (typeof cf.acquisitionsNet === 'number' ? cf.acquisitionsNet : 0), 0
+          );
+        }
+
+        // Dynamic leverage-adjusted firepower (matches analyze-company.mts briefing card)
+        // Firepower = cash + max(FCF * fcfMult, 0)
+        // where fcfMult scales 0-3x based on D/E headroom (ceiling = 2.0)
         const deRatio = keyMetrics?.debtToEquity ?? (
           debt != null && balance?.totalStockholdersEquity
             ? debt / balance.totalStockholdersEquity
             : undefined
         );
         const fcfMult = computeFcfMultiplier(deRatio);
-        const estimatedFirepower = nwc != null && fcf != null
-          ? Math.max(nwc, 0) + Math.max(fcf * fcfMult, 0)
+        const estimatedFirepower = cash != null && fcf != null
+          ? cash + Math.max(fcf * fcfMult, 0)
           : undefined;
 
         return {
@@ -354,6 +364,11 @@ export default async function handler(req: Request, _context: Context) {
             cashAndCashEquivalentsFormatted: cash != null ? formatCurrency(cash) : undefined,
             totalDebt: debt,
             totalDebtFormatted: debt != null ? formatCurrency(debt) : undefined,
+            goodwill,
+            goodwillFormatted: goodwill != null ? formatCurrency(goodwill) : undefined,
+            totalAssets,
+            goodwillToAssetsPct: goodwill != null && totalAssets && totalAssets > 0
+              ? (goodwill / totalAssets) * 100 : undefined,
             interestCoverage,
             roic,
             ebitdaMarginPct,
@@ -362,6 +377,9 @@ export default async function handler(req: Request, _context: Context) {
             freeCashFlowFormatted: fcf != null ? formatCurrency(fcf) : undefined,
             acquisitionsNet,
             acquisitionsNetFormatted: acquisitionsNet != null ? formatCurrency(acquisitionsNet) : undefined,
+            acquisitions3YrTotal,
+            acquisitions3YrTotalFormatted: acquisitions3YrTotal != null ? formatCurrency(acquisitions3YrTotal) : undefined,
+            acquisitionsByYear,
             netWorkingCapital: nwc,
             netWorkingCapitalFormatted: nwc != null ? formatCurrency(nwc) : undefined,
             fcfMultiplier: fcf != null ? Math.round(fcfMult * 10) / 10 : undefined,

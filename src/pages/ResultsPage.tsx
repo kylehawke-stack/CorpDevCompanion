@@ -10,7 +10,7 @@ import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx'
 
 export function ResultsPage() {
   const { state, dispatch } = useGameState();
-  const [tierFilter, setTierFilter] = useState<FilterOption>('all');
+  const [tierFilter, setTierFilter] = useState<FilterOption>('strategic_priority');
 
   const rankings = useMemo(
     () => computeRankings(state.ideas, state.votes),
@@ -18,7 +18,11 @@ export function ResultsPage() {
   );
 
   const filteredRankings = useMemo(() => {
-    if (tierFilter === 'all') return rankings;
+    if (tierFilter === 'segments_and_categories') {
+      return rankings
+        .filter((r) => r.idea.tier === 'market_segment' || r.idea.tier === 'product_category')
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+    }
     return rankings
       .filter((r) => r.idea.tier === tierFilter)
       .map((r, i) => ({ ...r, rank: i + 1 }));
@@ -112,6 +116,7 @@ export function ResultsPage() {
             sessionName={state.sessionName}
             promptData={state.promptData}
             competitorPromptData={state.competitorPromptData}
+            votingComplete={state.phase === 'results'}
           />
         </section>
       </main>

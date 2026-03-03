@@ -7,12 +7,14 @@ import { syncVote } from '../lib/supabaseSync.ts';
 export function useVoting() {
   const { state, dispatch } = useGameState();
   const [currentPair, setCurrentPair] = useState<[Idea, Idea] | null>(null);
-  const lastPairIds = useRef<[string, string] | null>(null);
+  // Sliding window of recently shown item IDs (last 3 pairs = 6 IDs)
+  // Used to penalize repeat items and prevent one item from dominating pairings
+  const recentItems = useRef<string[]>([]);
 
   const pickNextPair = useCallback(() => {
-    const pair = selectPair(state.ideas, state.votes, state.totalVoteCount, state.phase, lastPairIds.current);
+    const pair = selectPair(state.ideas, state.votes, state.totalVoteCount, state.phase, recentItems.current);
     if (pair) {
-      lastPairIds.current = [pair[0].id, pair[1].id];
+      recentItems.current = [...recentItems.current, pair[0].id, pair[1].id].slice(-6);
     }
     setCurrentPair(pair);
   }, [state.ideas, state.votes, state.totalVoteCount, state.phase]);

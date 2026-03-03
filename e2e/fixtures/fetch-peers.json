@@ -1,0 +1,32 @@
+{
+  "peers": [
+    {
+      "symbol": "SN",
+      "name": "SharkNinja",
+      "marketCap": 15200000000,
+      "industry": "Furnishings, Fixtures & Appliances",
+      "logo": "https://images.financialmodelingprep.com/symbol/SN.png"
+    },
+    {
+      "symbol": "SPB",
+      "name": "Spectrum Brands Holdings",
+      "marketCap": 2900000000,
+      "industry": "Household Products",
+      "logo": "https://images.financialmodelingprep.com/symbol/SPB.png"
+    },
+    {
+      "symbol": "IRBT",
+      "name": "iRobot Corporation",
+      "marketCap": 420000000,
+      "industry": "Furnishings, Fixtures & Appliances",
+      "logo": "https://images.financialmodelingprep.com/symbol/IRBT.png"
+    },
+    {
+      "symbol": "FLXS",
+      "name": "Flexsteel Industries",
+      "marketCap": 275000000,
+      "industry": "Furnishings, Fixtures & Appliances",
+      "logo": "https://images.financialmodelingprep.com/symbol/FLXS.png"
+    }
+  ]
+}

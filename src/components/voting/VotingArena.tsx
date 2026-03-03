@@ -8,6 +8,8 @@ import { useIdeaInjection } from '../../hooks/useIdeaInjection.ts';
 import { useGameState } from '../../context/GameStateContext.tsx';
 import { syncPhaseChange, updateSessionField } from '../../lib/supabaseSync.ts';
 import { getOrCreateVoterId } from '../../lib/voterId.ts';
+import { supabase } from '../../lib/supabase.ts';
+import { CreateSessionModal } from '../session/CreateSessionModal.tsx';
 
 interface VotingArenaProps {
   onViewResults: () => void;
@@ -22,6 +24,8 @@ export function VotingArena({ onViewResults }: VotingArenaProps) {
   const { state, dispatch } = useGameState();
   const [showDirectionModal, setShowDirectionModal] = useState(false);
   const [directionText, setDirectionText] = useState('');
+  const [showCreateSession, setShowCreateSession] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const isCollaborative = !!state.isCollaborative;
   const isAdmin = !isCollaborative || state.adminVoterId === getOrCreateVoterId();
@@ -189,9 +193,6 @@ export function VotingArena({ onViewResults }: VotingArenaProps) {
               &larr; Back to Step 4
             </Button>
           )}
-          <Button variant="ghost" onClick={skipPair}>
-            Skip (Space)
-          </Button>
           <button
             onClick={() => setShowDirectionModal(true)}
             className="text-xs text-muted hover:text-accent border border-edge hover:border-accent/50 rounded-lg px-3 py-1.5 transition-colors"
@@ -250,12 +251,48 @@ export function VotingArena({ onViewResults }: VotingArenaProps) {
         </div>
       </div>
 
-      {/* Keyboard shortcut legend */}
-      <div className="text-center text-xs text-dimmed space-x-6">
-        <span><kbd className="px-1.5 py-0.5 bg-surface-elevated rounded border border-edge font-mono">A</kbd> Left card</span>
-        <span><kbd className="px-1.5 py-0.5 bg-surface-elevated rounded border border-edge font-mono">L</kbd> Right card</span>
-        <span><kbd className="px-1.5 py-0.5 bg-surface-elevated rounded border border-edge font-mono">Space</kbd> Skip</span>
+      {/* Keyboard shortcuts + Link/Add Others */}
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-dimmed space-x-6">
+          <span><kbd className="px-1.5 py-0.5 bg-surface-elevated rounded border border-edge font-mono">A</kbd> Left card</span>
+          <span><kbd className="px-1.5 py-0.5 bg-surface-elevated rounded border border-edge font-mono">L</kbd> Right card</span>
+          <span><kbd className="px-1.5 py-0.5 bg-surface-elevated rounded border border-edge font-mono">Space</kbd> Skip</span>
+        </div>
+        {supabase && (
+          state.isCollaborative && state.shareCode ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted font-mono">
+                {`${window.location.origin}${window.location.pathname}?s=${state.shareCode}`}
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?s=${state.shareCode}`);
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2000);
+                }}
+                className="px-2 py-1 rounded bg-accent/20 text-accent text-xs font-medium hover:bg-accent/30 transition-colors"
+              >
+                {linkCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowCreateSession(true)}
+              className="text-xs text-muted hover:text-accent border border-edge hover:border-accent/50 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1.5"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              Link / Add Others
+            </button>
+          )
+        )}
       </div>
+
+      {/* Create Session Modal */}
+      {showCreateSession && (
+        <CreateSessionModal onClose={() => setShowCreateSession(false)} />
+      )}
 
       {/* Suggest Direction Modal */}
       {showDirectionModal && (

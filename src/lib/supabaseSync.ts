@@ -1,5 +1,5 @@
 import { supabase } from './supabase.ts';
-import type { Idea, Vote, GameState, CompanyProfile, FinancialHighlight, RevenueSegment, CompetitorProfile, PeerCompany, PeerFinancials, StrategicContext } from '../types/index.ts';
+import type { Idea, Vote, GameState, CompanyProfile, FinancialHighlight, RevenueSegment, CompetitorProfile, PeerCompany, PeerFinancials } from '../types/index.ts';
 
 // ─── Type Converters ────────────────────────────────────────────────────
 
@@ -111,7 +111,7 @@ export async function createSession(
       competitor_profiles: state.competitorProfiles,
       prompt_data: state.promptData ?? null,
       competitor_prompt_data: state.competitorPromptData ?? null,
-      strategic_context: state.strategicContext ?? null,
+      strategic_context: null,
       user_directions: state.userDirections,
       available_peers: state.availablePeers,
       selected_peers: state.selectedPeers,
@@ -210,7 +210,7 @@ export async function joinSession(
     totalVoteCount: session.total_vote_count,
     lastInjectionAtVoteCount: session.last_injection_at_vote_count,
     phase: session.phase,
-    strategicContext: session.strategic_context as StrategicContext | undefined,
+    // strategicContext removed — field kept in DB for backward compat
     step1VoteCount: session.step1_vote_count,
     step2VoteCount: session.step2_vote_count,
     step3VoteCount: session.step3_vote_count,
@@ -270,7 +270,7 @@ export async function loadSession(sessionId: string, voterId: string): Promise<G
     totalVoteCount: session.total_vote_count,
     lastInjectionAtVoteCount: session.last_injection_at_vote_count,
     phase: session.phase,
-    strategicContext: session.strategic_context as StrategicContext | undefined,
+    // strategicContext removed — field kept in DB for backward compat
     step1VoteCount: session.step1_vote_count,
     step2VoteCount: session.step2_vote_count,
     step3VoteCount: session.step3_vote_count,

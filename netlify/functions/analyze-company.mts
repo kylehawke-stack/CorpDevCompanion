@@ -1,4 +1,5 @@
 import type { Context } from "@netlify/functions";
+import { cachedFmpFetch } from "./lib/fmpCache.js";
 
 interface FmpProfile {
   symbol: string;
@@ -80,17 +81,6 @@ function pct(val: number): string {
   return `${(val * 100).toFixed(1)}%`;
 }
 
-async function fmpFetch(endpoint: string, params: Record<string, string>, fmpKey: string): Promise<any | null> {
-  try {
-    const qs = new URLSearchParams({ ...params, apikey: fmpKey });
-    const res = await fetch(`https://financialmodelingprep.com/stable/${endpoint}?${qs}`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
 export default async function handler(req: Request, _context: Context) {
   const fmpKey = process.env.FMP_API_KEY;
 
@@ -133,26 +123,41 @@ export default async function handler(req: Request, _context: Context) {
     keyMetricsData,
     ...transcriptResults
   ] = await Promise.all([
-    fmpFetch("profile", { symbol }, fmpKey),
-    fmpFetch("income-statement", { symbol, period: "annual", limit: "2" }, fmpKey),
-    fmpFetch("balance-sheet-statement", { symbol, period: "annual", limit: "1" }, fmpKey),
-    fmpFetch("key-metrics", { symbol, period: "annual", limit: "1" }, fmpKey),
+    cachedFmpFetch("profile", { symbol }, fmpKey),
+    cachedFmpFetch("income-statement", { symbol, period: "annual", limit: "4" }, fmpKey),
+    cachedFmpFetch("balance-sheet-statement", { symbol, period: "annual", limit: "1" }, fmpKey),
+    cachedFmpFetch("key-metrics", { symbol, period: "annual", limit: "1" }, fmpKey),
     ...recentQuarters.map((q) =>
-      fmpFetch("earning-call-transcript", { symbol, year: String(q.year), quarter: String(q.quarter) }, fmpKey)
+      cachedFmpFetch("earning-call-transcript", { symbol, year: String(q.year), quarter: String(q.quarter) }, fmpKey)
     ),
   ]);
 
   // Fetch analyst data + cash flow + revenue segmentation in parallel
   const [estimatesData, priceTargetData, cashFlowData, revenueProductData, revenueGeoData, peersCsvText, secFilingsData, maSearchData, stockNewsData] = await Promise.all([
-    fmpFetch("analyst-estimates", { symbol, period: "annual", limit: "1" }, fmpKey),
-    fmpFetch("price-target-consensus", { symbol }, fmpKey),
-    fmpFetch("cash-flow-statement", { symbol, period: "annual", limit: "2" }, fmpKey),
-    fmpFetch("revenue-product-segmentation", { symbol, period: "annual" }, fmpKey),
-    fmpFetch("revenue-geographic-segments", { symbol, period: "annual" }, fmpKey),
+    cachedFmpFetch("analyst-estimates", { symbol, period: "annual", limit: "1" }, fmpKey),
+    cachedFmpFetch("price-target-consensus", { symbol }, fmpKey),
+    cachedFmpFetch("cash-flow-statement", { symbol, period: "annual", limit: "2" }, fmpKey),
+    cachedFmpFetch("revenue-product-segmentation", { symbol, period: "annual" }, fmpKey),
+    cachedFmpFetch("revenue-geographic-segments", { symbol, period: "annual" }, fmpKey),
     Promise.resolve(""), // peers resolved from hardcoded data below
-    fmpFetch("sec-filings-search/symbol", { symbol, from: fromDate, to: toDate, limit: "100" }, fmpKey),
-    fmpFetch("mergers-acquisitions-search", { name: symbol, limit: "10" }, fmpKey),
-    fmpFetch("news/stock", { symbols: symbol, from: fromDate, to: toDate, limit: "100" }, fmpKey),
+    cachedFmpFetch("sec-filings-search/symbol", { symbol, from: fromDate, to: toDate, limit: "100" }, fmpKey),
+    // Search M&A by both symbol and company name to find more deals
+    (async () => {
+      const companyName = (Array.isArray(profileData) && profileData.length > 0) ? profileData[0].companyName : null;
+      const bySymbol = await cachedFmpFetch("mergers-acquisitions-search", { name: symbol, limit: "10" }, fmpKey);
+      if (companyName) {
+        const byName = await cachedFmpFetch("mergers-acquisitions-search", { name: companyName, limit: "10" }, fmpKey);
+        const seen = new Set<string>();
+        const merged: any[] = [];
+        for (const d of [...(Array.isArray(bySymbol) ? bySymbol : []), ...(Array.isArray(byName) ? byName : [])]) {
+          const key = `${d.targetedCompanyName || ''}-${d.transactionDate || ''}`;
+          if (!seen.has(key)) { seen.add(key); merged.push(d); }
+        }
+        return merged;
+      }
+      return bySymbol;
+    })(),
+    cachedFmpFetch("news/stock", { symbols: symbol, from: fromDate, to: toDate, limit: "100" }, fmpKey),
   ]);
 
   // Collect all successfully fetched transcripts (newest first)
@@ -212,9 +217,17 @@ export default async function handler(req: Request, _context: Context) {
     const revenueGrowth = prior && prior.revenue > 0
       ? ` (${((latest.revenue - prior.revenue) / prior.revenue * 100).toFixed(1)}% YoY growth)`
       : "";
+    // 3-year CAGR if we have 4 years of data
+    const threeYearsAgoIncome = incomeData.length >= 4 ? incomeData[3] : null;
+    const cagr3yr = threeYearsAgoIncome && threeYearsAgoIncome.revenue > 0
+      ? (Math.pow(latest.revenue / threeYearsAgoIncome.revenue, 1 / 3) - 1) * 100
+      : null;
+    const cagrStr = cagr3yr !== null
+      ? `, ${cagr3yr >= 0 ? "+" : ""}${cagr3yr.toFixed(1)}% 3yr CAGR`
+      : "";
     financialsSection += `
 INCOME STATEMENT (${latest.date}):
-- Revenue: ${formatCurrency(latest.revenue)}${revenueGrowth}
+- Revenue: ${formatCurrency(latest.revenue)}${revenueGrowth}${cagrStr}
 - Gross Profit: ${formatCurrency(latest.grossProfit)} (${latest.revenue > 0 ? pct(latest.grossProfit / latest.revenue) : "N/A"} margin)
 - Operating Income: ${formatCurrency(latest.operatingIncome)} (${latest.revenue > 0 ? pct(latest.operatingIncome / latest.revenue) : "N/A"} margin)
 - Net Income: ${formatCurrency(latest.netIncome)} (${latest.revenue > 0 ? pct(latest.netIncome / latest.revenue) : "N/A"} margin)
@@ -466,16 +479,52 @@ ${materialNews.slice(0, 30).map((n: any) => {
     const growthPct = prior && prior.revenue > 0
       ? ((rev - prior.revenue) / prior.revenue * 100) : null;
 
-    const detail = growthPct !== null
-      ? (growthPct >= 0 ? `+${growthPct.toFixed(1)}% YoY growth` : `(${Math.abs(growthPct).toFixed(1)}%) YoY decline`)
-      : "";
+    // 3-year CAGR for the card
+    const threeYearsAgoRev = incomeData.length >= 4 ? incomeData[3] : null;
+    const revenueGrowthPct3yr = threeYearsAgoRev && threeYearsAgoRev.revenue > 0
+      ? (Math.pow(rev / threeYearsAgoRev.revenue, 1 / 3) - 1) * 100
+      : null;
+
+    let detail: string;
+    if (growthPct !== null && revenueGrowthPct3yr !== null) {
+      const yoyStr = growthPct >= 0 ? `+${growthPct.toFixed(1)}% YoY` : `(${Math.abs(growthPct).toFixed(1)}%) YoY`;
+      const cagrStr = revenueGrowthPct3yr >= 0 ? `+${revenueGrowthPct3yr.toFixed(1)}%` : `(${Math.abs(revenueGrowthPct3yr).toFixed(1)}%)`;
+      detail = `${yoyStr}, ${cagrStr} 3yr CAGR`;
+    } else if (growthPct !== null) {
+      detail = growthPct >= 0 ? `+${growthPct.toFixed(1)}% YoY growth` : `(${Math.abs(growthPct).toFixed(1)}%) YoY decline`;
+    } else {
+      detail = "";
+    }
+
+    // Build CAGR-first observation: lead with the 3yr trend, then the YoY context
+    const cagrFmt = revenueGrowthPct3yr !== null
+      ? (revenueGrowthPct3yr >= 0 ? `+${revenueGrowthPct3yr.toFixed(1)}%` : `(${Math.abs(revenueGrowthPct3yr).toFixed(1)}%)`)
+      : null;
 
     let obs: string;
-    if (growthPct === null) obs = "Limited historical data for trend analysis.";
-    else if (growthPct > 10) obs = `Strong organic momentum at +${growthPct.toFixed(1)}% makes acquisitions additive rather than necessary for top-line growth. The business can afford to be selective.`;
-    else if (growthPct > 3) obs = `Moderate organic growth provides a stable foundation. Acquisitions could meaningfully accelerate revenue beyond organic capabilities without signaling desperation.`;
-    else if (growthPct > 0) obs = `Low single-digit growth creates a compelling case for inorganic acceleration through targeted acquisitions to supplement organic performance.`;
-    else obs = `Revenue contraction of (${Math.abs(growthPct).toFixed(1)}%) underscores urgency for portfolio diversification or category expansion through M&A.`;
+    if (growthPct === null) {
+      obs = "Limited historical data for trend analysis.";
+    } else if (cagrFmt !== null) {
+      // Lead with 3yr CAGR, then contextualize with YoY
+      const yoyFmt = growthPct >= 0 ? `+${growthPct.toFixed(1)}%` : `(${Math.abs(growthPct).toFixed(1)}%)`;
+      if (revenueGrowthPct3yr! > 3) {
+        obs = `3-year revenue CAGR of ${cagrFmt} signals sustained growth momentum. The most recent year came in at ${yoyFmt} YoY. This trajectory gives the company leverage to be selective in M&A — acquisitions are additive, not essential.`;
+      } else if (revenueGrowthPct3yr! > 0) {
+        obs = `3-year revenue CAGR of ${cagrFmt} shows modest but positive long-term growth. The latest year delivered ${yoyFmt} YoY. Targeted acquisitions could meaningfully accelerate revenue beyond this organic baseline.`;
+      } else if (growthPct > 0) {
+        obs = `3-year revenue CAGR of ${cagrFmt} indicates longer-term headwinds despite a recent uptick of ${yoyFmt} YoY. M&A could provide a structural step-change in the growth trajectory.`;
+      } else {
+        obs = `3-year revenue CAGR of ${cagrFmt} combined with ${yoyFmt} most recent YoY performance underscores urgency for portfolio diversification or category expansion through M&A.`;
+      }
+    } else if (growthPct > 10) {
+      obs = `Strong organic momentum at +${growthPct.toFixed(1)}% makes acquisitions additive rather than necessary for top-line growth. The business can afford to be selective.`;
+    } else if (growthPct > 3) {
+      obs = `Moderate organic growth at +${growthPct.toFixed(1)}% provides a stable foundation. Acquisitions could meaningfully accelerate revenue beyond organic capabilities.`;
+    } else if (growthPct > 0) {
+      obs = `Low single-digit growth at +${growthPct.toFixed(1)}% creates a compelling case for inorganic acceleration through targeted acquisitions.`;
+    } else {
+      obs = `Revenue contraction of (${Math.abs(growthPct).toFixed(1)}%) underscores urgency for portfolio diversification or category expansion through M&A.`;
+    }
 
     highlights.push({ label: "Revenue & Growth", value: formatCurrency(rev), detail, observation: obs });
   }
@@ -574,7 +623,7 @@ ${materialNews.slice(0, 30).map((n: any) => {
     highlights.push({
       label: "Leverage & Capacity",
       value: `${deRatio.toFixed(2)}x`,
-      detail: `${formatCurrency(netDebt)} net debt`,
+      detail: `D/E: ${deRatio.toFixed(2)}x | Net Debt: ${formatCurrency(netDebt)}`,
       observation: obs,
     });
   }
@@ -586,6 +635,77 @@ ${materialNews.slice(0, 30).map((n: any) => {
     const priorAcq = Array.isArray(cashFlowData) && cashFlowData.length > 1
       ? Math.abs(cashFlowData[1].acquisitionsNet || 0) : 0;
     const totalAcqSpend = latestAcq + priorAcq;
+
+    // Collect known deals from ALL available sources
+    const knownDeals: { name: string; value?: string; date?: string }[] = [];
+    const knownDealKeys = new Set<string>();
+
+    function addDeal(name: string, date?: string, value?: string) {
+      const key = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (key.length < 3 || knownDealKeys.has(key)) return;
+      knownDealKeys.add(key);
+      knownDeals.push({ name, date, value });
+    }
+
+    // Source 1: FMP M&A search data (try many field name variants)
+    if (Array.isArray(maSearchData) && maSearchData.length > 0) {
+      for (const deal of maSearchData.slice(0, 10)) {
+        const name = deal.targetedCompanyName || deal.targetName || deal.target || deal.companyName;
+        if (!name) continue;
+        const date = deal.transactionDate || deal.date || deal.announcedDate;
+        const value = deal.transactionValue ? `$${(deal.transactionValue / 1e6).toFixed(0)}M` : undefined;
+        addDeal(name, date, value);
+      }
+    }
+
+    // Source 2: News headlines — broad scan for acquisition-related activity
+    if (Array.isArray(stockNewsData) && stockNewsData.length > 0) {
+      const acqKeywords = /acqui|merger|merg(?:ing|ed)|purchase[ds]?\s+(?:of|the)|(?:buys?|bought)\s+[A-Z]/i;
+      for (const n of stockNewsData) {
+        const title = n.title || '';
+        const text = n.text || '';
+        const combined = `${title} ${text.slice(0, 200)}`;
+        if (!acqKeywords.test(combined)) continue;
+        const date = (n.publishedDate || n.date || '').split(' ')[0];
+
+        // Try multiple extraction patterns on the title
+        const patterns = [
+          // "acquires Health Beacon" / "acquisition of Health Beacon"
+          /(?:acquir(?:es?|ed|ing)|acquisition of|purchase[ds]?|buys?|bought|merger with|completes?\s+(?:the\s+)?(?:acquisition|purchase)\s+of)\s+([A-Z][A-Za-z][\w\s&.'',-]{1,50}?)(?:\s*[,.(]|\s+for\s+|\s+in\s+|\s+to\s+|$)/i,
+          // "Health Beacon acquisition" (target before the keyword)
+          /([A-Z][A-Za-z][\w\s&.'',-]{1,40}?)\s+acquisition\b/i,
+        ];
+        for (const pat of patterns) {
+          const m = title.match(pat);
+          if (m) {
+            let targetName = m[1].trim().replace(/[.,;:]+$/, '').replace(/\s+(Inc|LLC|Ltd|Corp|Company|Co|Holdings?|Brands?)\.?$/i, '').trim();
+            // Skip if it's just the company itself
+            if (targetName.toLowerCase().includes(profile.companyName.split(' ')[0].toLowerCase())) continue;
+            if (targetName.length > 2) {
+              addDeal(targetName, date);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Format the most recent deal date nicely (e.g., "March 2024")
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    function formatDealDate(dateStr?: string): string {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      if (parts.length >= 2) {
+        const monthIdx = parseInt(parts[1], 10) - 1;
+        const month = MONTHS[monthIdx] || parts[1];
+        return `${month} ${parts[0]}`;
+      }
+      return parts[0]; // just the year
+    }
+
+    // Sort deals by date descending (most recent first)
+    knownDeals.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const mostRecent = knownDeals[0];
 
     let rating: string, acqDetail: string, obs: string;
     if (totalAcqSpend > 100_000_000) {
@@ -599,11 +719,34 @@ ${materialNews.slice(0, 30).map((n: any) => {
     } else if (totalAcqSpend > 0) {
       rating = "Occasional Buyer";
       acqDetail = `${formatCurrency(totalAcqSpend)} in minor deals`;
-      obs = "Limited recent M&A activity suggests an organic-first mindset. A strategic shift toward acquisitions would require building deal sourcing and integration capabilities.";
+      obs = "Limited recent M&A activity suggests an organic-first mindset.";
     } else {
       rating = "Organic-Focused";
       acqDetail = "No acquisitions in 2 years";
-      obs = "No material acquisition activity detected in cash flow statements. Pivoting to an M&A growth strategy would represent a significant strategic shift.";
+      obs = "No material acquisition activity detected in cash flow statements.";
+    }
+
+    // Always reference the most recent known deal when available
+    if (mostRecent) {
+      const dateStr = formatDealDate(mostRecent.date);
+      const dealLine = dateStr
+        ? `Last known M&A activity: ${mostRecent.name}${mostRecent.value ? ` (${mostRecent.value})` : ''} in ${dateStr}.`
+        : `Last known M&A activity: ${mostRecent.name}${mostRecent.value ? ` (${mostRecent.value})` : ''}.`;
+      obs += ` ${dealLine}`;
+
+      if (knownDeals.length > 1) {
+        const others = knownDeals.slice(1, 4).map(d => d.name).join(', ');
+        obs += ` Other deals include ${others}.`;
+      }
+
+      if (rating === "Occasional Buyer" || rating === "Organic-Focused") {
+        obs += " A strategic shift toward acquisitions would require building deal sourcing and integration capabilities.";
+      }
+    } else {
+      // No deals found anywhere — add generic closing
+      if (rating === "Occasional Buyer" || rating === "Organic-Focused") {
+        obs += " A strategic shift toward acquisitions would require building deal sourcing and integration capabilities.";
+      }
     }
 
     highlights.push({ label: "Acquisitiveness", value: rating, detail: acqDetail, observation: obs });

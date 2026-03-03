@@ -79,7 +79,7 @@ function HowItWorksA() {
                 onClick={() => setExpanded(isOpen ? null : i)}
               >
                 <div className="flex items-center gap-3 mb-0.5">
-                  <h3 className="text-base font-bold text-white">{step.title ?? step.full}</h3>
+                  <h3 className="text-base font-bold text-white">{('title' in step ? step.title : step.full) as string}</h3>
                   <span
                     className="px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider"
                     style={{
@@ -243,7 +243,6 @@ function TrackerB({ onClick }: { onClick: () => void }) {
         {STEPS.map((step, i) => {
           const isDone = i < currentIdx;
           const isCurrent = i === currentIdx;
-          const isFuture = i > currentIdx;
           return (
             <div
               key={step.key}

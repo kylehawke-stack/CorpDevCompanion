@@ -1,0 +1,12 @@
+{
+  "ideas": [
+    {
+      "id": "inject-1",
+      "title": "Outdoor Power Equipment",
+      "tier": "product_category",
+      "blurb": ["**Battery-powered outdoor tools** complement indoor appliances", "Growing consumer preference for cordless products", "Leverages existing motor and battery expertise"],
+      "source": "claude_injected",
+      "createdAt": 1709500100000
+    }
+  ]
+}

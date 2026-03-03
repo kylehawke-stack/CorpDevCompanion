@@ -182,6 +182,159 @@ $$;
 -- REALTIME
 -- ============================================================
 
+-- ============================================================
+-- CROWD WISDOM PEER STORAGE
+-- ============================================================
+
+-- Global cross-session resource keyed by target company symbol.
+-- Tracks which peers users select most frequently for each target.
+CREATE TABLE IF NOT EXISTS crowd_peers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  target_symbol TEXT NOT NULL,
+  peer_symbol TEXT NOT NULL,
+  peer_name TEXT NOT NULL,
+  peer_market_cap BIGINT NOT NULL DEFAULT 0,
+  peer_industry TEXT NOT NULL DEFAULT '',
+  peer_logo TEXT NOT NULL DEFAULT '',
+  selection_count INT NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(target_symbol, peer_symbol)
+);
+
+CREATE INDEX IF NOT EXISTS idx_crowd_peers_target_count
+  ON crowd_peers(target_symbol, selection_count DESC);
+
+ALTER TABLE crowd_peers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "crowd_peers_allow_all" ON crowd_peers FOR ALL USING (true) WITH CHECK (true);
+
+-- Atomically record a batch of peer selections.
+-- Accepts a JSONB array of {symbol, name, marketCap, industry, logo}.
+-- Inserts new peers or increments selection_count on conflict.
+CREATE OR REPLACE FUNCTION record_peer_selections(
+  p_target_symbol TEXT,
+  p_peers JSONB
+)
+RETURNS VOID
+LANGUAGE plpgsql AS $$
+DECLARE
+  peer JSONB;
+BEGIN
+  FOR peer IN SELECT * FROM jsonb_array_elements(p_peers)
+  LOOP
+    INSERT INTO crowd_peers (target_symbol, peer_symbol, peer_name, peer_market_cap, peer_industry, peer_logo)
+    VALUES (
+      p_target_symbol,
+      peer->>'symbol',
+      peer->>'name',
+      COALESCE((peer->>'marketCap')::BIGINT, 0),
+      COALESCE(peer->>'industry', ''),
+      COALESCE(peer->>'logo', '')
+    )
+    ON CONFLICT (target_symbol, peer_symbol) DO UPDATE SET
+      selection_count = crowd_peers.selection_count + 1,
+      peer_name = EXCLUDED.peer_name,
+      peer_market_cap = EXCLUDED.peer_market_cap,
+      peer_industry = EXCLUDED.peer_industry,
+      peer_logo = EXCLUDED.peer_logo,
+      updated_at = now();
+  END LOOP;
+END;
+$$;
+
+-- ============================================================
+-- REALTIME
+-- ============================================================
+
+-- ============================================================
+-- BRIEFING CORRECTIONS (iterative AI quality improvement)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS briefing_corrections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  target_symbol TEXT NOT NULL,
+  card_label TEXT NOT NULL,
+  card_index INT NOT NULL DEFAULT 0,
+  issue_type TEXT NOT NULL DEFAULT 'other',
+  original_text TEXT NOT NULL DEFAULT '',
+  user_note TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_briefing_corrections_symbol
+  ON briefing_corrections(target_symbol);
+
+ALTER TABLE briefing_corrections ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "briefing_corrections_allow_all" ON briefing_corrections FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- FMP DATA CACHE
+-- ============================================================
+
+-- Caches FMP API responses to eliminate redundant calls across functions.
+-- Composite key: (endpoint, params_key) where params_key is sorted query params minus apikey.
+CREATE TABLE IF NOT EXISTS fmp_cache (
+  endpoint TEXT NOT NULL,
+  params_key TEXT NOT NULL,
+  data_category TEXT NOT NULL DEFAULT 'profile',
+  response_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (endpoint, params_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fmp_cache_category ON fmp_cache(data_category);
+
+ALTER TABLE fmp_cache ENABLE ROW LEVEL SECURITY;
+
+-- Block anon access — only service_role can read/write
+CREATE POLICY "fmp_cache_service_only" ON fmp_cache FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
+
+-- Upsert a cache entry (insert or update with fresh timestamp)
+CREATE OR REPLACE FUNCTION upsert_fmp_cache(
+  p_endpoint TEXT,
+  p_params_key TEXT,
+  p_data_category TEXT,
+  p_response_data JSONB
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  INSERT INTO fmp_cache (endpoint, params_key, data_category, response_data, created_at)
+  VALUES (p_endpoint, p_params_key, p_data_category, p_response_data, now())
+  ON CONFLICT (endpoint, params_key) DO UPDATE SET
+    response_data = EXCLUDED.response_data,
+    data_category = EXCLUDED.data_category,
+    created_at = now();
+END;
+$$;
+
+-- Get a cache entry if it exists and is within the TTL (in seconds).
+-- Returns NULL if missing or expired.
+CREATE OR REPLACE FUNCTION get_fmp_cache(
+  p_endpoint TEXT,
+  p_params_key TEXT,
+  p_ttl_seconds INT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  result JSONB;
+BEGIN
+  SELECT response_data INTO result
+  FROM fmp_cache
+  WHERE endpoint = p_endpoint
+    AND params_key = p_params_key
+    AND created_at > now() - (p_ttl_seconds || ' seconds')::INTERVAL;
+  RETURN result;
+END;
+$$;
+
 -- Enable realtime for the tables we need to subscribe to
 ALTER PUBLICATION supabase_realtime ADD TABLE sessions;
 ALTER PUBLICATION supabase_realtime ADD TABLE ideas;

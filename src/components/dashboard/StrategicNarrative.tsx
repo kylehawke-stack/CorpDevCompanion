@@ -11,9 +11,10 @@ interface StrategicNarrativeProps {
   sessionName: string;
   promptData?: string;
   competitorPromptData?: string;
+  votingComplete?: boolean;
 }
 
-export function StrategicNarrative({ rankings, totalVotes, sessionName, promptData, competitorPromptData }: StrategicNarrativeProps) {
+export function StrategicNarrative({ rankings, totalVotes, sessionName, promptData, competitorPromptData, votingComplete = false }: StrategicNarrativeProps) {
   const [narrative, setNarrative] = useState<string | null>(null);
   const [presentationOutline, setPresentationOutline] = useState<string | null>(null);
   const [showOutline, setShowOutline] = useState(false);
@@ -44,9 +45,11 @@ export function StrategicNarrative({ rankings, totalVotes, sessionName, promptDa
     return (
       <div className="text-center py-6">
         <p className="text-sm text-muted mb-3">
-          Generate a strategic briefing based on the voting results.
+          {votingComplete
+            ? 'Generate a strategic briefing based on the voting results.'
+            : 'Complete all voting steps to unlock the strategic briefing.'}
         </p>
-        <Button onClick={handleGenerate} disabled={rankings.length === 0}>
+        <Button onClick={handleGenerate} disabled={!votingComplete || rankings.length === 0}>
           Generate Strategic Briefing
         </Button>
         {error && <p className="text-negative text-sm mt-2">{error}</p>}

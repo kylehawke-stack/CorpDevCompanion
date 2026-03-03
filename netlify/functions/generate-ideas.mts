@@ -43,7 +43,7 @@ interface RequestBody {
 }
 
 export default async function handler(req: Request, _context: Context) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "API key not configured" }), {
       status: 500,
@@ -70,7 +70,7 @@ export default async function handler(req: Request, _context: Context) {
     // No body is fine
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, baseURL: "https://api.anthropic.com" });
 
   // Build system message — use promptData (cached) when available, otherwise basic profile
   const systemBlocks: Anthropic.Messages.TextBlockParam[] = [

@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, useRef, type ReactNode } from 'react';
 import type { GameState, GameAction } from '../types/index.ts';
 import { saveState, loadState, clearState } from '../lib/storage.ts';
 import { useSupabaseRealtime } from '../hooks/useSupabaseRealtime.ts';
@@ -196,9 +196,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
   }
 }
 
+type BriefingPromise = Promise<{ highlights: import('../types/index.ts').FinancialHighlight[]; ideas: import('../types/index.ts').Idea[] }>;
+
 interface GameStateContextValue {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
+  setBriefingPromise: (p: BriefingPromise) => void;
+  getBriefingPromise: () => BriefingPromise | null;
 }
 
 const GameStateContext = createContext<GameStateContextValue | null>(null);
@@ -208,6 +212,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const saved = loadState();
     return saved ?? initialState;
   });
+
+  // Briefing promise ref — survives re-renders, no state churn
+  const briefingPromiseRef = useRef<BriefingPromise | null>(null);
+  const setBriefingPromise = (p: BriefingPromise) => { briefingPromiseRef.current = p; };
+  const getBriefingPromise = () => briefingPromiseRef.current;
 
   // Persist state changes
   useEffect(() => {
@@ -220,7 +229,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   useSupabaseRealtime(state.sessionId, state.voterId, dispatch);
 
   return (
-    <GameStateContext.Provider value={{ state, dispatch }}>
+    <GameStateContext.Provider value={{ state, dispatch, setBriefingPromise, getBriefingPromise }}>
       {children}
     </GameStateContext.Provider>
   );

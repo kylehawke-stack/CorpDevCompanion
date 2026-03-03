@@ -88,27 +88,33 @@ function pairAlreadyVoted(a: string, b: string, votes: Vote[]): boolean {
  * Main pairing selection with 3-rule priority system.
  *
  * 1. New item boost: items with <3 comparisons get 50% selection probability
- * 2. Uncertainty reduction: pair items with most-overlapping confidence intervals
+ * 2. Uncertainty reduction: weighted sampling by CI overlap with diversity penalty
  * 3. Adjacency enforcement: all pairs must satisfy tier adjacency matrix
+ *
+ * @param recentItemIds - sliding window of recently shown item IDs (last 3 pairs = 6 IDs)
+ *   Used to penalize pairs involving items that were just shown, preventing
+ *   the same item from dominating one side of the pairing.
  */
 export function selectPair(
   ideas: Idea[],
   votes: Vote[],
   totalVoteCount: number,
   phase?: GameState['phase'],
-  lastPairIds?: [string, string] | null
+  recentItemIds?: string[]
 ): [Idea, Idea] | null {
   if (ideas.length < 2) return null;
 
   const weights = getTierWeights(totalVoteCount, phase);
   const counts = getComparisonCounts(ideas, votes);
+  const recent = new Set(recentItemIds ?? []);
+  // The last pair shown (first 2 items in recentItemIds) — excluded to guard
+  // against stale closures where the latest vote isn't yet in the votes array
+  const lastPair = recentItemIds && recentItemIds.length >= 2
+    ? [recentItemIds[recentItemIds.length - 2], recentItemIds[recentItemIds.length - 1]]
+    : null;
 
   // Filter ideas by eligible tiers for the current phase
   const eligibleIdeas = ideas.filter((idea) => weights[idea.tier] > 0);
-  if (eligibleIdeas.length < 2) {
-    // Fall back to all ideas if filtering leaves too few
-    // This shouldn't happen normally but protects against edge cases
-  }
   const poolIdeas = eligibleIdeas.length >= 2 ? eligibleIdeas : ideas;
 
   // Get all valid pairs that haven't been voted on yet
@@ -122,18 +128,18 @@ export function selectPair(
     if (companyPairs.length > 0) allPairs = companyPairs;
   }
 
+  const isLastPair = (a: string, b: string) =>
+    lastPair !== null &&
+    ((a === lastPair[0] && b === lastPair[1]) || (a === lastPair[1] && b === lastPair[0]));
+
   const availablePairs = allPairs.filter(
-    ([a, b]) => !pairAlreadyVoted(a.id, b.id, votes)
+    ([a, b]) => !pairAlreadyVoted(a.id, b.id, votes) && !isLastPair(a.id, b.id)
   );
 
   // If all pairs exhausted, allow re-pairing but exclude the last-shown pair
   let fallbackPairs = allPairs;
-  if (lastPairIds && allPairs.length > 1) {
-    const filtered = allPairs.filter(
-      ([a, b]) =>
-        !((a.id === lastPairIds[0] && b.id === lastPairIds[1]) ||
-          (a.id === lastPairIds[1] && b.id === lastPairIds[0]))
-    );
+  if (lastPair && allPairs.length > 1) {
+    const filtered = allPairs.filter(([a, b]) => !isLastPair(a.id, b.id));
     if (filtered.length > 0) fallbackPairs = filtered;
   }
   const candidatePairs = availablePairs.length > 0 ? availablePairs : fallbackPairs;
@@ -145,20 +151,26 @@ export function selectPair(
   );
 
   if (newItemPairs.length > 0 && Math.random() < 0.5) {
-    // Filter by tier weights
-    const tierFiltered = filterByTierWeights(newItemPairs, weights);
-    const pool = tierFiltered.length > 0 ? tierFiltered : newItemPairs;
-    return pool[Math.floor(Math.random() * pool.length)];
+    // Prefer pairs where neither item was recently shown
+    const freshPairs = newItemPairs.filter(
+      ([a, b]) => !recent.has(a.id) && !recent.has(b.id)
+    );
+    const pool = freshPairs.length > 0 ? freshPairs : newItemPairs;
+    const tierFiltered = filterByTierWeights(pool, weights);
+    const finalPool = tierFiltered.length > 0 ? tierFiltered : pool;
+    return finalPool[Math.floor(Math.random() * finalPool.length)];
   }
 
-  // Rule 2: Uncertainty reduction — pair items with overlapping CIs
+  // Rule 2: Weighted sampling by CI overlap + diversity penalty
   const rankings = computeRankings(poolIdeas, votes);
   const rankMap = new Map<string, RankedIdea>();
   for (const r of rankings) {
     rankMap.set(r.idea.id, r);
   }
 
-  // Score pairs by CI overlap
+  // Base weight ensures every pair has some minimum selection probability
+  const BASE_WEIGHT = 50;
+
   const scoredPairs = candidatePairs.map(([a, b]) => {
     const ra = rankMap.get(a.id);
     const rb = rankMap.get(b.id);
@@ -168,19 +180,37 @@ export function selectPair(
       const overlapEnd = Math.min(ra.confidenceInterval.upper, rb.confidenceInterval.upper);
       overlap = Math.max(0, overlapEnd - overlapStart);
     }
-    return { pair: [a, b] as [Idea, Idea], overlap };
+
+    // Diversity penalty: reduce weight for pairs involving recently-shown items
+    let diversityMultiplier = 1.0;
+    const aRecent = recent.has(a.id);
+    const bRecent = recent.has(b.id);
+    if (aRecent && bRecent) diversityMultiplier = 0.1;
+    else if (aRecent || bRecent) diversityMultiplier = 0.3;
+
+    const weight = (overlap + BASE_WEIGHT) * diversityMultiplier;
+    return { pair: [a, b] as [Idea, Idea], weight };
   });
 
-  scoredPairs.sort((a, b) => b.overlap - a.overlap);
+  // Filter by tier weights
+  const targetTier = selectTier(weights);
+  const tierFiltered = scoredPairs.filter(
+    ({ pair: [a, b] }) => a.tier === targetTier || b.tier === targetTier
+  );
+  const finalPool = tierFiltered.length > 0 ? tierFiltered : scoredPairs;
 
-  // Take top 20% most uncertain pairs and filter by tier
-  const topCount = Math.max(1, Math.ceil(scoredPairs.length * 0.2));
-  const topPairs = scoredPairs.slice(0, topCount).map((s) => s.pair);
+  // Weighted random selection
+  const totalWeight = finalPool.reduce((sum, sp) => sum + sp.weight, 0);
+  if (totalWeight <= 0) {
+    return candidatePairs[Math.floor(Math.random() * candidatePairs.length)];
+  }
 
-  const tierFiltered = filterByTierWeights(topPairs, weights);
-  const pool = tierFiltered.length > 0 ? tierFiltered : topPairs;
-
-  return pool[Math.floor(Math.random() * pool.length)];
+  let r = Math.random() * totalWeight;
+  for (const sp of finalPool) {
+    r -= sp.weight;
+    if (r <= 0) return sp.pair;
+  }
+  return finalPool[finalPool.length - 1].pair;
 }
 
 /**

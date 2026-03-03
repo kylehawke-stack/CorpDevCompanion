@@ -4,10 +4,11 @@ import Anthropic from "@anthropic-ai/sdk";
 interface RequestBody {
   promptData: string;
   competitorPromptData?: string;
+  corrections?: string;
 }
 
 export default async function handler(req: Request, _context: Context) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "API key not configured" }), {
       status: 500,
@@ -16,7 +17,7 @@ export default async function handler(req: Request, _context: Context) {
   }
 
   const body: RequestBody = await req.json();
-  const { promptData, competitorPromptData } = body;
+  const { promptData, competitorPromptData, corrections } = body;
 
   if (!promptData) {
     return new Response(JSON.stringify({ error: "Missing promptData" }), {
@@ -25,9 +26,14 @@ export default async function handler(req: Request, _context: Context) {
     });
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, baseURL: "https://api.anthropic.com" });
 
   // System message: persona + financial context (cached for reuse across subsequent calls)
+  // Append corrections to promptData if available (so they get cached together)
+  const promptDataWithCorrections = corrections
+    ? `${promptData}\n${corrections}`
+    : promptData;
+
   const systemMessages: Anthropic.Messages.TextBlockParam[] = [
     {
       type: "text" as const,
@@ -35,7 +41,7 @@ export default async function handler(req: Request, _context: Context) {
     },
     {
       type: "text" as const,
-      text: promptData,
+      text: promptDataWithCorrections,
       // @ts-expect-error — cache_control is supported by the API but not fully typed in all SDK versions
       cache_control: competitorPromptData ? undefined : { type: "ephemeral" },
     },
@@ -62,7 +68,7 @@ Cards 1-6 (Revenue, Profitability, Cash Flow, Firepower, Leverage, Acquisitivene
 
 Generate 3 CATEGORIES of insight cards. Two categories contain MULTIPLE individual cards; one is a single card.
 
-CATEGORY 1: "Earnings Call Insights" — Generate 3-10 individual cards, each with label: "Earnings Call Insights".
+CATEGORY 1: "Earnings Call Insights" — Generate 5-10 individual cards, each with label: "Earnings Call Insights". Aim for the UPPER end of this range. Generate fewer cards ONLY if the earnings transcripts lack sufficient distinct themes.
 Each card focuses on a DIFFERENT theme from earnings calls. Possible themes (only generate where there's real substance — skip thin themes):
 - Management priorities & strategic vision
 - Growth initiatives & new products
@@ -75,7 +81,7 @@ Each card focuses on a DIFFERENT theme from earnings calls. Possible themes (onl
 - Guidance & forward outlook
 Each card MUST include a direct attributed quote, e.g., 'As CEO Scott Tidey noted: "quote here"'. Prefer quotes from the Q&A section over prepared remarks. Each card should cover a DISTINCT theme — no overlap.
 
-CATEGORY 2: "Analyst Perspectives" — Generate 3-10 individual cards, each with label: "Analyst Perspectives".
+CATEGORY 2: "Analyst Perspectives" — Generate 4-10 individual cards, each with label: "Analyst Perspectives". Aim for the UPPER end of this range. Generate fewer cards ONLY if there is insufficient analyst coverage or Q&A content.
 Each card focuses on a DIFFERENT analyst concern or thesis. Possible themes (only generate where there's real substance):
 - Revenue outlook & growth expectations
 - Margin trajectory & profitability concerns
@@ -83,7 +89,7 @@ Each card focuses on a DIFFERENT analyst concern or thesis. Possible themes (onl
 - M&A expectations & capital deployment
 - Valuation & price target rationale
 - Sector headwinds & macro risks
-Each card MUST include a direct attributed quote from an analyst, e.g., 'Analyst Adam Bradley asked: "quote here"'. If no formal analyst coverage exists, use analyst questions from the earnings call Q&A. Each card should cover a DISTINCT concern — no overlap.
+Each card MUST include a direct attributed quote FROM THE ANALYST THEMSELVES — quote the analyst's question or comment, NEVER management's response. Format: 'Analyst Adam Bradley asked: "quote here"'. If no formal analyst coverage exists, use analyst questions from the earnings call Q&A. NEVER attribute a quote to "Management" in an Analyst Perspectives card. Each card should cover a DISTINCT concern — no overlap.
 
 CATEGORY 3: "Competitive Positioning" — Generate 3-10 individual cards, each with label: "Competitive Positioning".
 Each card focuses on a DIFFERENT competitive dimension. Possible themes (only generate where there's real substance):
@@ -94,6 +100,7 @@ Each card focuses on a DIFFERENT competitive dimension. Possible themes (only ge
 - Geographic coverage gaps
 - M&A opportunities to strengthen competitive position
 Reference specific competitors by name from the competitive landscape data.
+CRITICAL: Never list the company's own subsidiaries or owned brands as competitors. Check the company profile description for owned brands before referencing any company as a competitor.
 
 Each card has:
 - "label": the category name (use EXACTLY "Earnings Call Insights", "Analyst Perspectives", or "Competitive Positioning")
@@ -121,27 +128,27 @@ Context: This captures the scope-vs-scale spectrum. Options 0-1 are scale plays 
 
 DIMENSION 2 — TARGET PROFILE (3-5 options, conservative→aggressive)
 What kind of company fits? Order from safe/established to unproven/innovative.
-Examples: "Proven Operators" (conservative) → "Brand-Led Businesses" → "Capability Specialists" → "Fast Growers" → "Category Creators" (aggressive)
+Examples: "Buy Proven Operators" (conservative) → "Acquire Strong Brands" → "Add Specialized Capabilities" → "Capture Fast Growers" → "Back Category Creators" (aggressive)
 Context: What asset are you really buying — cash flows, brand equity, IP/talent, growth trajectory, or market creation?
 
 DIMENSION 3 — DEAL APPROACH (3-5 options, conservative→aggressive)
 How do you want to build the portfolio? Order from fewest/biggest deals to most/smallest.
-Examples: "One Big Move" (conservative) → "A Few Targeted Bets" → "Steady Stream of Deals" → "Mix of Big and Small" (aggressive)
+Examples: "Make One Big Move" (conservative) → "Place a Few Targeted Bets" → "Build a Steady Stream" → "Mix Big and Small Deals" (aggressive)
 Context: McKinsey's research shows programmatic acquirers (steady stream) outperform by +2.3% excess TRS annually. BCG frames this as string-of-pearls vs. big-bang. Both approaches have merit depending on the company's situation.
 
 DIMENSION 4 — INTEGRATION (3-5 options, conservative→aggressive)
 How tightly do you integrate? Order from tightest to most independent.
-Examples: "Full Absorption" (conservative) → "Shared Backbone" → "Operate Independently" → "Arm's Length" (aggressive)
+Examples: "Absorb Fully" (conservative) → "Share the Backbone" → "Operate Independently" → "Keep at Arm's Length" (aggressive)
 Context: Accenture found only 27% of deals achieve both margin improvement and revenue growth — wrong integration model is the #1 deal killer. Tighter integration captures cost synergies but risks destroying what you bought.
 
 DIMENSION 5 — DEAL STRUCTURE (3-5 options, conservative→aggressive)
 How do you structure the relationship? Order from full control to least control.
-Examples: "Full Acquisitions Only" (conservative) → "Majority Stakes" → "Joint Ventures" → "Minority Investments" (aggressive)
+Examples: "Buy Outright" (conservative) → "Take Majority Stakes" → "Form Joint Ventures" → "Make Minority Investments" (aggressive)
 Context: Deloitte found a 42% increase in alternative deal structures (JVs, alliances, partnerships). 88% of companies have shifted their targeting strategy in the past 2 years. Full buyouts aren't the only tool anymore.
 
 DIMENSION 6 — STRATEGIC PROXIMITY (3-5 options, conservative→aggressive)
 How far from your core business? Order from closest to furthest.
-Examples: "Strengthen the Core" (conservative) → "Adjacent Spaces" → "New-to-Company Territory" → "Completely New Direction" (aggressive)
+Examples: "Strengthen the Core" (conservative) → "Expand to Adjacent Spaces" → "Enter New Territory" → "Go in a New Direction" (aggressive)
 Context: Bain's outside-in approach says start with where growth is heading, not what you already do. But Deloitte's data shows 88% of successful acquirers actually narrowed their sector focus. The tension between focus and expansion is the key strategic choice.
 
 CRITICAL RULES:
@@ -152,8 +159,9 @@ CRITICAL RULES:
 - Each option should be informed by the financial data (reference it in the blurbs) but the TITLE stays framework-level
 - Use plain, direct language a corp dev team would actually use — avoid consulting buzzwords
 
-Examples of GOOD titles: "Get Bigger at What We Do", "Fill Gaps in Our Lineup", "Proven Operators", "Steady Stream of Deals", "Full Absorption", "Joint Ventures", "Adjacent Spaces"
-Examples of BAD titles (too jargony or product-specific): "Transformational Bets", "Bolt-On Adjacencies", "Commercial Food Service", "Smart Kitchen Tech", "White Space Diversification"
+GRAMMAR RULE: Every title MUST start with a verb (imperative or action-oriented). This ensures parallel construction across all dimensions.
+Examples of GOOD titles: "Get Bigger at What We Do", "Fill Gaps in Our Lineup", "Buy Proven Operators", "Build a Steady Stream", "Absorb Fully", "Form Joint Ventures", "Expand to Adjacent Spaces"
+Examples of BAD titles (nouns, jargon, or product-specific): "Proven Operators", "Steady Stream of Deals", "Full Absorption", "Adjacent Spaces", "Transformational Bets", "Commercial Food Service"
 
 BLURB RULES (for ideas):
 - "blurb" must be a JSON array of 2-3 strings

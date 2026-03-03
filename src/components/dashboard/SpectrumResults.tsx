@@ -82,28 +82,13 @@ function SegmentedBar({ spectrum }: { spectrum: DimensionSpectrum }) {
           })}
         </div>
 
-        {/* Orange position dot */}
-        <div
-          className="absolute top-0 pointer-events-none flex items-center justify-center"
-          style={{
-            left: `${posPercent}%`,
-            transform: 'translateX(-50%)',
-            height: '44px',
-          }}
-        >
-          <div
-            className="w-3.5 h-3.5 rounded-full bg-[#f97316] border-2 border-[#0f1419]"
-            style={{ boxShadow: '0 0 10px rgba(249, 115, 22, 0.6)' }}
-          />
-        </div>
-
-        {/* Triangle pointer below the bar */}
+        {/* Triangle pointer below the bar, pointing up */}
         <div
           className="absolute pointer-events-none"
           style={{
             left: `${posPercent}%`,
             transform: 'translateX(-50%)',
-            top: '44px',
+            top: '46px',
           }}
         >
           <div
@@ -112,7 +97,7 @@ function SegmentedBar({ spectrum }: { spectrum: DimensionSpectrum }) {
               height: 0,
               borderLeft: '6px solid transparent',
               borderRight: '6px solid transparent',
-              borderTop: '6px solid #f97316',
+              borderBottom: '6px solid #f97316',
             }}
           />
         </div>

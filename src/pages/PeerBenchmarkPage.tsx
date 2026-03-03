@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
 import { Button } from '../components/ui/Button.tsx';
 import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
@@ -146,6 +146,111 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
+// ── Chart Carousel ──
+
+function ChartCarousel({ children }: { children: React.ReactNode }) {
+  const slides = (Array.isArray(children) ? children : [children]).filter(Boolean) as React.ReactElement[];
+  const [active, setActive] = useState(0);
+
+  if (slides.length <= 1) return <div className="mb-8">{slides[0]}</div>;
+
+  return (
+    <div className="mb-8 relative">
+      {slides[active]}
+      <div className="flex items-center justify-center gap-3 mt-4">
+        <button
+          onClick={() => setActive(i => (i - 1 + slides.length) % slides.length)}
+          className="w-8 h-8 rounded-full bg-[#1a2332] border border-[#2a3a4e] text-[#94a3b8] hover:text-[#e2e8f0] hover:border-[#f97316] transition-colors flex items-center justify-center"
+          aria-label="Previous chart"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        {slides.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setActive(i)}
+            className={`w-2 h-2 rounded-full transition-colors ${i === active ? 'bg-[#f97316]' : 'bg-[#2a3a4e] hover:bg-[#475569]'}`}
+            aria-label={`Chart ${i + 1}`}
+          />
+        ))}
+        <button
+          onClick={() => setActive(i => (i + 1) % slides.length)}
+          className="w-8 h-8 rounded-full bg-[#1a2332] border border-[#2a3a4e] text-[#94a3b8] hover:text-[#e2e8f0] hover:border-[#f97316] transition-colors flex items-center justify-center"
+          aria-label="Next chart"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Acquisitiveness Panel (mini carousel) ──
+
+function AcquisitivenessPanel({ sorted, targetSymbol, colorMap }: {
+  sorted: PeerFinancials[];
+  targetSymbol: string | undefined;
+  colorMap: Record<string, string>;
+}) {
+  const [slide, setSlide] = useState(0);
+
+  const fmtAcq = (v: number) => {
+    if (v === 0) return '\u2014';
+    const abs = Math.abs(v);
+    const s = abs >= 1e9 ? `$${(abs / 1e9).toFixed(1)}B` : abs >= 1e6 ? `$${(abs / 1e6).toFixed(0)}M` : `$${(abs / 1e3).toFixed(0)}K`;
+    return v < 0 ? `(${s})` : s;
+  };
+
+  const slides = [
+    {
+      label: 'Goodwill %',
+      subtitle: 'Goodwill as a share of total assets',
+      metricKey: 'goodwillToAssetsPct' as keyof PeerFinancials,
+      format: (v: number) => pct(v),
+      higherBetter: true,
+    },
+    {
+      label: 'Acquisitions',
+      subtitle: 'Net cash spent on acquisitions (3-year total)',
+      metricKey: 'acquisitions3YrTotal' as keyof PeerFinancials,
+      format: fmtAcq,
+      higherBetter: false,
+    },
+  ];
+
+  const current = slides[slide];
+
+  return (
+    <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
+      <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Acquisitiveness</p>
+      <p className="text-[10px] text-[#64748b] mb-3">{current.subtitle}</p>
+      <MetricBar
+        peers={sorted}
+        targetSymbol={targetSymbol}
+        metricKey={current.metricKey}
+        format={current.format}
+        colorMap={colorMap}
+        higherBetter={current.higherBetter}
+      />
+      <div className="flex items-center justify-center gap-1.5 mt-3">
+        {slides.map((s, i) => (
+          <button
+            key={i}
+            onClick={() => setSlide(i)}
+            className={`text-[9px] px-2 py-0.5 rounded-full transition-colors ${
+              i === slide
+                ? 'bg-[#f97316]/20 text-[#f97316]'
+                : 'text-[#475569] hover:text-[#94a3b8]'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──
 
 export function PeerBenchmarkPage() {
@@ -195,7 +300,7 @@ export function PeerBenchmarkPage() {
   const radarMetrics: { key: keyof PeerFinancials; label: string; invert?: boolean }[] = [
     { key: 'grossMarginPct', label: 'Gross Margin' },
     { key: 'operatingMarginPct', label: 'Op. Margin' },
-    { key: 'returnOnEquity', label: 'ROE' },
+    { key: 'roic', label: 'ROIC' },
     { key: 'currentRatio', label: 'Liquidity' },
     { key: 'debtToEquity', label: 'Low Leverage', invert: true },
   ];
@@ -237,6 +342,79 @@ export function PeerBenchmarkPage() {
     'Net': +(p.netMarginPct ?? 0).toFixed(1),
   })), [sorted]);
 
+  // M&A-oriented insight for Valuation Map
+  const valuationInsight = useMemo(() => {
+    if (!target || scatterData.length < 2 || !target.evToEbitda) return '';
+    const peerEVs = scatterData.filter(d => d.symbol !== targetSymbol).map(d => d.y).sort((a, b) => a - b);
+    const medianEV = peerEVs[Math.floor(peerEVs.length / 2)];
+    const diff = target.evToEbitda - medianEV;
+
+    const cheapest = scatterData.filter(d => d.symbol !== targetSymbol).reduce((a, b) => a.y < b.y ? a : b);
+    const priciest = scatterData.filter(d => d.symbol !== targetSymbol).reduce((a, b) => a.y > b.y ? a : b);
+
+    const lines: string[] = [];
+
+    // Target positioning
+    if (Math.abs(diff) > 1) {
+      const dir = diff < 0 ? 'discount' : 'premium';
+      lines.push(`${targetSymbol} trades at ${target.evToEbitda.toFixed(1)}x EV/EBITDA, a ${Math.abs(diff).toFixed(1)}x ${dir} to the peer median of ${medianEV.toFixed(1)}x.`);
+      if (diff < 0) {
+        lines.push(`This valuation gap could signal the market is underappreciating ${targetSymbol}'s margin profile, or it may reflect lower growth expectations relative to peers.`);
+      } else {
+        lines.push(`The premium valuation reflects market confidence in ${targetSymbol}'s growth trajectory and competitive positioning.`);
+      }
+    } else {
+      lines.push(`${targetSymbol} trades roughly in line with peers at ${target.evToEbitda.toFixed(1)}x EV/EBITDA (peer median: ${medianEV.toFixed(1)}x), suggesting the market views its risk/return profile as comparable to the competitive set.`);
+    }
+
+    // M&A perspective
+    if (cheapest.symbol !== priciest.symbol) {
+      lines.push(`From an M&A perspective, ${cheapest.symbol} at ${cheapest.y.toFixed(1)}x represents the most accessible valuation in the peer set, while ${priciest.symbol} at ${priciest.y.toFixed(1)}x commands a significant premium. Peers in the lower-right quadrant — high margins at modest multiples — may represent the best value acquisition opportunities.`);
+    }
+
+    return lines.join(' ');
+  }, [scatterData, target, targetSymbol]);
+
+  // M&A-oriented insight for Radar / Financial Profile
+  const radarInsight = useMemo(() => {
+    if (!target || sorted.length < 2) return '';
+
+    const dims: { label: string; key: keyof PeerFinancials; higher: boolean }[] = [
+      { label: 'Gross Margin', key: 'grossMarginPct', higher: true },
+      { label: 'Operating Margin', key: 'operatingMarginPct', higher: true },
+      { label: 'ROIC', key: 'roic', higher: true },
+      { label: 'Liquidity', key: 'currentRatio', higher: true },
+      { label: 'Leverage', key: 'debtToEquity', higher: false },
+    ];
+
+    const ranks = dims.map(d => ({ ...d, rank: getRank(sorted, targetSymbol!, d.key, d.higher) }));
+    const best = ranks.filter(r => r.rank > 0).reduce((a, b) => a.rank < b.rank ? a : b, ranks[0]);
+    const worst = ranks.filter(r => r.rank > 0).reduce((a, b) => a.rank > b.rank ? a : b, ranks[0]);
+
+    const lines: string[] = [];
+
+    lines.push(`${targetSymbol} shows relative strength in ${best.label} (#${best.rank} of ${total}) but trails the peer set in ${worst.label} (#${worst.rank} of ${total}).`);
+
+    // Identify the strongest overall peer
+    const peerScores = peerOnly.map(p => {
+      const score = dims.reduce((sum, d) => sum + (total + 1 - getRank(sorted, p.symbol, d.key, d.higher)), 0);
+      return { symbol: p.symbol, score };
+    }).sort((a, b) => b.score - a.score);
+
+    if (peerScores.length > 0) {
+      lines.push(`${peerScores[0].symbol} emerges as the most well-rounded competitor across all financial dimensions.`);
+    }
+
+    // M&A angle
+    if (worst.rank >= total - 1) {
+      lines.push(`${targetSymbol}'s competitive gap in ${worst.label} suggests an acquisition target with demonstrated strength in this area could materially improve the combined entity's positioning against peers.`);
+    } else {
+      lines.push(`An acquisition target with strong ${worst.label} performance could help ${targetSymbol} close the gap with top-ranked peers and strengthen its overall competitive profile.`);
+    }
+
+    return lines.join(' ');
+  }, [target, sorted, targetSymbol, total, peerOnly]);
+
   return (
     <div className="min-h-screen bg-[#0f1419] py-10 px-4">
       <div className="max-w-7xl mx-auto">
@@ -265,7 +443,7 @@ export function PeerBenchmarkPage() {
               { label: 'Revenue', val: fmt(target.revenue), avg: fmt(peerAvg('revenue') ?? 0), rank: getRank(sorted, targetSymbol!, 'revenue') },
               { label: 'Gross Margin', val: pct(target.grossMarginPct), avg: pct(peerAvg('grossMarginPct')), rank: getRank(sorted, targetSymbol!, 'grossMarginPct') },
               { label: 'EV/EBITDA', val: target.evToEbitda ? `${target.evToEbitda.toFixed(1)}x` : '\u2014', avg: peerAvg('evToEbitda') ? `${peerAvg('evToEbitda')!.toFixed(1)}x` : '\u2014', rank: getRank(sorted, targetSymbol!, 'evToEbitda', false) },
-              { label: 'Return on Equity', val: pct(target.returnOnEquity), avg: pct(peerAvg('returnOnEquity')), rank: getRank(sorted, targetSymbol!, 'returnOnEquity') },
+              { label: 'Return on Invested Capital', val: pct(target.roic), avg: pct(peerAvg('roic')), rank: getRank(sorted, targetSymbol!, 'roic') },
             ]).map(kpi => (
               <div key={kpi.label} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -279,7 +457,7 @@ export function PeerBenchmarkPage() {
           </div>
         )}
 
-        {/* Small Multiple Metric Bars */}
+        {/* Row 2: Small Multiple Metric Bars */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
             <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Revenue</p>
@@ -290,99 +468,33 @@ export function PeerBenchmarkPage() {
             <MetricBar peers={sorted} targetSymbol={targetSymbol} metricKey="grossMarginPct" format={v => pct(v)} colorMap={colorMap} />
           </div>
           <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
-            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Return on Equity</p>
-            <MetricBar peers={sorted} targetSymbol={targetSymbol} metricKey="returnOnEquity" format={v => pct(v)} colorMap={colorMap} />
+            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Return on Invested Capital</p>
+            <MetricBar peers={sorted} targetSymbol={targetSymbol} metricKey="roic" format={v => pct(v)} colorMap={colorMap} />
           </div>
         </div>
 
-        {/* Acquisition Firepower Comparison */}
-        {(() => {
-          // Estimate firepower per peer using available data:
-          // Firepower = EBITDA * max(0, targetLeverage - currentD/E)
-          // where targetLeverage = 3.0x (conservative max for M&A)
-          // This approximates incremental debt capacity from EBITDA headroom.
-          // NOTE for Claude Code: pipe through cash + totalDebt from FMP
-          // balance sheet to PeerFinancials for a more precise calculation:
-          // Firepower = cash + EBITDA * max(0, 3.0 - D/E)
-          const TARGET_LEVERAGE = 3.0;
-          const firepowerData = sorted
-            .map(p => {
-              const ebitda = p.ebitda ?? 0;
-              const de = p.debtToEquity ?? 0;
-              const headroom = Math.max(0, TARGET_LEVERAGE - de);
-              const fp = ebitda > 0 ? ebitda * headroom : 0;
-              return { symbol: p.symbol, name: p.name, ebitda, de, headroom, firepower: fp, isTarget: p.symbol === targetSymbol };
-            })
-            .filter(d => d.firepower > 0)
-            .sort((a, b) => b.firepower - a.firepower);
+        {/* Row 3: FCF → Firepower → Acquisitiveness (the M&A capacity story) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          {/* 1. Free Cash Flow — do you generate the cash? */}
+          <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
+            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Free Cash Flow</p>
+            <p className="text-[10px] text-[#64748b] mb-3">Operating cash flow less capex</p>
+            <MetricBar peers={sorted} targetSymbol={targetSymbol} metricKey="freeCashFlow" format={fmt} colorMap={colorMap} />
+          </div>
 
-          if (firepowerData.length === 0) return null;
+          {/* 2. Acquisition Firepower — do you have balance sheet capacity? */}
+          <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
+            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Acquisition Firepower</p>
+            <p className="text-[10px] text-[#64748b] mb-3">Cash + FCF-based debt capacity</p>
+            <MetricBar peers={sorted} targetSymbol={targetSymbol} metricKey="estimatedFirepower" format={fmt} colorMap={colorMap} />
+            <p className="text-[9px] text-[#475569] mt-2 italic">
+              {'Cash + FCF \u00d7 (0\u20133x based on D/E headroom)'}
+            </p>
+          </div>
 
-          const maxFP = Math.max(...firepowerData.map(d => d.firepower));
-
-          return (
-            <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5 mb-8">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Acquisition Firepower</p>
-                  <p className="text-xs text-[#64748b]">
-                    Estimated M&A capacity based on EBITDA and leverage headroom (target: {TARGET_LEVERAGE.toFixed(1)}x D/E ceiling)
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {firepowerData.map((d, i) => {
-                  const barPct = (d.firepower / maxFP) * 100;
-                  return (
-                    <div key={d.symbol} className="flex items-center gap-3">
-                      {/* Rank */}
-                      <span className={`text-[10px] font-mono w-4 text-right shrink-0 ${i === 0 ? 'text-emerald-400' : 'text-[#64748b]'}`}>
-                        {i + 1}
-                      </span>
-
-                      {/* Company */}
-                      <span className={`text-xs font-mono w-10 shrink-0 text-right ${d.isTarget ? 'text-[#f97316] font-bold' : 'text-[#94a3b8]'}`}>
-                        {d.symbol}
-                      </span>
-
-                      {/* Bar */}
-                      <div className="flex-1 h-6 bg-[#0f1419] rounded overflow-hidden relative">
-                        <div
-                          className="h-full rounded transition-all flex items-center"
-                          style={{
-                            width: `${Math.max(barPct, 4)}%`,
-                            backgroundColor: d.isTarget ? '#f97316' : colorMap[d.symbol] || '#3b82f6',
-                            opacity: d.isTarget ? 1 : 0.6,
-                          }}
-                        >
-                          <span className="text-[10px] font-mono font-semibold text-white pl-2 truncate">
-                            {fmt(d.firepower)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Breakdown */}
-                      <div className="shrink-0 text-right w-32">
-                        <span className="text-[10px] font-mono text-[#64748b]">
-                          {fmt(d.ebitda)} EBITDA
-                        </span>
-                        <span className="text-[10px] text-[#475569] mx-1">{'\u00d7'}</span>
-                        <span className="text-[10px] font-mono text-[#64748b]">
-                          {d.headroom.toFixed(1)}x
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <p className="text-[10px] text-[#475569] mt-3 italic">
-                {'Firepower = EBITDA \u00d7 (3.0x ceiling \u2013 current D/E). Assumes incremental debt capacity only; excludes cash on hand.'}
-              </p>
-            </div>
-          );
-        })()}
+          {/* 3. Acquisitiveness — carousel: Goodwill % + Acquisitions Net */}
+          <AcquisitivenessPanel sorted={sorted} targetSymbol={targetSymbol} colorMap={colorMap} />
+        </div>
 
         {/* Comprehensive Metrics Table */}
         <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl overflow-hidden mb-8">
@@ -399,7 +511,7 @@ export function PeerBenchmarkPage() {
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Mkt Cap</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">P/E</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">EV/EBITDA</th>
-                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">ROE</th>
+                  <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">ROIC</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">D/E</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Current Ratio</th>
                   <th className="text-right py-3 px-3 text-[10px] uppercase tracking-widest text-[#64748b] font-medium">Employees</th>
@@ -442,8 +554,8 @@ export function PeerBenchmarkPage() {
                       <td className="py-2.5 px-3 text-right font-mono text-[#e2e8f0]">{p.peRatio != null ? `${p.peRatio.toFixed(1)}x` : '\u2014'}</td>
                       <td className="py-2.5 px-3 text-right font-mono text-[#e2e8f0]">{p.evToEbitda != null && p.evToEbitda > 0 ? `${p.evToEbitda.toFixed(1)}x` : '\u2014'}</td>
                       <td className="py-2.5 px-3 text-right">
-                        <span className={`font-mono ${negClass(p.returnOnEquity)}`}>{pct(p.returnOnEquity)}</span>
-                        <RankBadge rank={getRank(sorted, p.symbol, 'returnOnEquity')} total={validCount('returnOnEquity')} />
+                        <span className={`font-mono ${negClass(p.roic)}`}>{pct(p.roic)}</span>
+                        <RankBadge rank={getRank(sorted, p.symbol, 'roic')} total={validCount('roic')} />
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono text-[#e2e8f0]">{ratio(p.debtToEquity)}</td>
                       <td className="py-2.5 px-3 text-right font-mono text-[#e2e8f0]">{p.currentRatio != null ? `${p.currentRatio.toFixed(2)}x` : '\u2014'}</td>
@@ -456,101 +568,122 @@ export function PeerBenchmarkPage() {
           </div>
         </div>
 
-        {/* Charts: Scatter + Radar */}
-        <div className="grid grid-cols-1 gap-6 mb-8">
-
+        {/* Charts Carousel: Scatter + Radar — each with Expert Interpretation sidebar */}
+        <ChartCarousel>
           {/* Valuation Map Scatter */}
           {scatterData.length >= 2 && target && (
             <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
-              <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Valuation Map</p>
-              <p className="text-xs text-[#64748b] mb-4">Gross margin vs. EV/EBITDA -- bubble size = revenue</p>
-              <ResponsiveContainer width="100%" height={300}>
-                <ScatterChart margin={{ top: 10, right: 20, bottom: 25, left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2a3a4e" />
-                  <XAxis
-                    type="number" dataKey="x" name="Gross Margin"
-                    tickFormatter={v => `${v}%`}
-                    tick={{ fill: '#64748b', fontSize: 10 }}
-                    axisLine={{ stroke: '#2a3a4e' }}
-                    label={{ value: 'Gross Margin %', position: 'bottom', offset: 8, fill: '#64748b', fontSize: 10 }}
-                  />
-                  <YAxis
-                    type="number" dataKey="y" name="EV/EBITDA"
-                    tickFormatter={v => `${v}x`}
-                    tick={{ fill: '#64748b', fontSize: 10 }}
-                    axisLine={{ stroke: '#2a3a4e' }}
-                    label={{ value: 'EV/EBITDA', angle: -90, position: 'insideLeft', offset: 0, fill: '#64748b', fontSize: 10 }}
-                  />
-                  <ZAxis type="number" dataKey="z" range={[300, 1000]} />
-                  <Tooltip content={<ScatterTooltipContent />} />
-                  {target.evToEbitda && (
-                    <>
-                      <ReferenceLine x={target.grossMarginPct} stroke="#f97316" strokeDasharray="4 4" strokeOpacity={0.3} />
-                      <ReferenceLine y={target.evToEbitda} stroke="#f97316" strokeDasharray="4 4" strokeOpacity={0.3} />
-                    </>
-                  )}
-                  <Scatter data={scatterData}>
-                    {scatterData.map((entry) => (
-                      <Cell
-                        key={entry.symbol}
-                        fill={entry.fill}
-                        fillOpacity={entry.symbol === targetSymbol ? 1 : 0.65}
-                        stroke={entry.symbol === targetSymbol ? '#f97316' : 'transparent'}
-                        strokeWidth={entry.symbol === targetSymbol ? 2 : 0}
+              <div className="flex flex-col lg:flex-row gap-6">
+                {/* Chart — 60% */}
+                <div className="lg:w-[60%] min-w-0">
+                  <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Valuation Map</p>
+                  <p className="text-xs text-[#64748b] mb-4">Gross margin vs. EV/EBITDA — bubble size = revenue</p>
+                  <ResponsiveContainer width="100%" height={340}>
+                    <ScatterChart margin={{ top: 10, right: 20, bottom: 25, left: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#2a3a4e" />
+                      <XAxis
+                        type="number" dataKey="x" name="Gross Margin"
+                        tickFormatter={v => `${v}%`}
+                        tick={{ fill: '#64748b', fontSize: 10 }}
+                        axisLine={{ stroke: '#2a3a4e' }}
+                        label={{ value: 'Gross Margin %', position: 'bottom', offset: 8, fill: '#64748b', fontSize: 10 }}
                       />
+                      <YAxis
+                        type="number" dataKey="y" name="EV/EBITDA"
+                        tickFormatter={v => `${v}x`}
+                        tick={{ fill: '#64748b', fontSize: 10 }}
+                        axisLine={{ stroke: '#2a3a4e' }}
+                        label={{ value: 'EV/EBITDA', angle: -90, position: 'insideLeft', offset: 0, fill: '#64748b', fontSize: 10 }}
+                      />
+                      <ZAxis type="number" dataKey="z" range={[300, 1000]} />
+                      <Tooltip content={<ScatterTooltipContent />} />
+                      {target.evToEbitda && (
+                        <>
+                          <ReferenceLine x={target.grossMarginPct} stroke="#f97316" strokeDasharray="4 4" strokeOpacity={0.3} />
+                          <ReferenceLine y={target.evToEbitda} stroke="#f97316" strokeDasharray="4 4" strokeOpacity={0.3} />
+                        </>
+                      )}
+                      <Scatter data={scatterData}>
+                        {scatterData.map((entry) => (
+                          <Cell
+                            key={entry.symbol}
+                            fill={entry.fill}
+                            fillOpacity={entry.symbol === targetSymbol ? 1 : 0.65}
+                            stroke={entry.symbol === targetSymbol ? '#f97316' : 'transparent'}
+                            strokeWidth={entry.symbol === targetSymbol ? 2 : 0}
+                          />
+                        ))}
+                      </Scatter>
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-wrap gap-3 mt-3 justify-center">
+                    {scatterData.map(d => (
+                      <span key={d.symbol} className="flex items-center gap-1.5 text-[10px] text-[#94a3b8]">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.fill }} />
+                        {d.symbol}{d.symbol === targetSymbol ? ' (Target)' : ''}
+                      </span>
                     ))}
-                  </Scatter>
-                </ScatterChart>
-              </ResponsiveContainer>
-              <div className="flex flex-wrap gap-3 mt-3 justify-center">
-                {scatterData.map(d => (
-                  <span key={d.symbol} className="flex items-center gap-1.5 text-[10px] text-[#94a3b8]">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.fill }} />
-                    {d.symbol}{d.symbol === targetSymbol ? ' (Target)' : ''}
-                  </span>
-                ))}
+                  </div>
+                </div>
+
+                {/* Expert Interpretation — 40% */}
+                <div className="lg:w-[40%] lg:border-l lg:border-[#2a3a4e] lg:pl-6 flex flex-col justify-center">
+                  <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Expert Interpretation</p>
+                  <p className="text-[13px] text-[#c8d2de] leading-relaxed">{valuationInsight}</p>
+                </div>
               </div>
             </div>
           )}
 
           {/* Radar Chart */}
           <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
-            <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Financial Profile</p>
-            <p className="text-xs text-[#64748b] mb-4">Normalized 0-100 across the peer group</p>
-            <ResponsiveContainer width="100%" height={420}>
-              <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
-                <PolarGrid stroke="#2a3a4e" />
-                <PolarAngleAxis dataKey="metric" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
-                {sorted.map(p => (
-                  <Radar
-                    key={p.symbol}
-                    name={p.symbol}
-                    dataKey={p.symbol}
-                    stroke={colorMap[p.symbol]}
-                    fill={colorMap[p.symbol]}
-                    fillOpacity={p.symbol === targetSymbol ? 0.25 : 0.03}
-                    strokeWidth={p.symbol === targetSymbol ? 2.5 : 1}
-                    strokeOpacity={p.symbol === targetSymbol ? 1 : 0.45}
-                  />
-                ))}
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a2332', border: '1px solid #2a3a4e', borderRadius: '8px' }}
-                  labelStyle={{ color: '#e2e8f0' }}
-                  itemStyle={{ color: '#94a3b8' }}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
-            <div className="flex flex-wrap gap-3 mt-2 justify-center">
-              {sorted.map(p => (
-                <span key={p.symbol} className="flex items-center gap-1.5 text-[10px] text-[#94a3b8]">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colorMap[p.symbol] }} />
-                  {p.symbol}{p.symbol === targetSymbol ? ' (Target)' : ''}
-                </span>
-              ))}
+            <div className="flex flex-col lg:flex-row gap-6">
+              {/* Chart — 60% */}
+              <div className="lg:w-[60%] min-w-0">
+                <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Financial Profile</p>
+                <p className="text-xs text-[#64748b] mb-4">Normalized 0-100 across the peer group</p>
+                <ResponsiveContainer width="100%" height={340}>
+                  <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+                    <PolarGrid stroke="#2a3a4e" />
+                    <PolarAngleAxis dataKey="metric" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                    <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
+                    {sorted.map(p => (
+                      <Radar
+                        key={p.symbol}
+                        name={p.symbol}
+                        dataKey={p.symbol}
+                        stroke={colorMap[p.symbol]}
+                        fill={colorMap[p.symbol]}
+                        fillOpacity={p.symbol === targetSymbol ? 0.25 : 0.03}
+                        strokeWidth={p.symbol === targetSymbol ? 2.5 : 1}
+                        strokeOpacity={p.symbol === targetSymbol ? 1 : 0.45}
+                      />
+                    ))}
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1a2332', border: '1px solid #2a3a4e', borderRadius: '8px' }}
+                      labelStyle={{ color: '#e2e8f0' }}
+                      itemStyle={{ color: '#94a3b8' }}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+                <div className="flex flex-wrap gap-3 mt-2 justify-center">
+                  {sorted.map(p => (
+                    <span key={p.symbol} className="flex items-center gap-1.5 text-[10px] text-[#94a3b8]">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colorMap[p.symbol] }} />
+                      {p.symbol}{p.symbol === targetSymbol ? ' (Target)' : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Expert Interpretation — 40% */}
+              <div className="lg:w-[40%] lg:border-l lg:border-[#2a3a4e] lg:pl-6 flex flex-col justify-center">
+                <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Expert Interpretation</p>
+                <p className="text-[13px] text-[#c8d2de] leading-relaxed">{radarInsight}</p>
+              </div>
             </div>
           </div>
-        </div>
+        </ChartCarousel>
 
         {/* Margin Comparison Full Width */}
         <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5 mb-8">

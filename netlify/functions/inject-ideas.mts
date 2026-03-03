@@ -3,92 +3,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { cachedEnrichCompany } from "./lib/fmpCache.js";
 
 function normalizeBlurb(blurb: string | string[]): string[] {
   if (Array.isArray(blurb)) return blurb.length > 0 ? blurb : ["No details provided"];
   const sentences = blurb.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 0);
   return sentences.length > 0 ? sentences : [blurb];
-}
-
-interface FmpProfile {
-  symbol: string;
-  companyName: string;
-  marketCap: number;
-  fullTimeEmployees: string;
-  sector: string;
-  industry: string;
-  website: string;
-  image: string;
-}
-
-interface FmpSearchResult {
-  symbol: string;
-  name: string;
-  currency: string;
-  exchange: string;
-}
-
-function formatMarketCap(mc: number): string {
-  if (mc >= 1e9) return `$${(mc / 1e9).toFixed(1)}B`;
-  return `$${(mc / 1e6).toFixed(0)}M`;
-}
-
-async function enrichCompany(
-  companyName: string,
-  fmpKey: string
-): Promise<{ tags: string[]; website?: string; logoUrl?: string } | null> {
-  try {
-    const cleanName = companyName
-      .replace(
-        /\s*(Inc\.?|Corp\.?|Corporation|LLC|Ltd\.?|Holdings?|Co\.?|Group|Brands?|Company)\s*$/i,
-        ""
-      )
-      .trim();
-    const searchRes = await fetch(
-      `https://financialmodelingprep.com/stable/search-name?query=${encodeURIComponent(cleanName)}&apikey=${fmpKey}`
-    );
-    if (!searchRes.ok) return null;
-    const results: FmpSearchResult[] = await searchRes.json();
-    if (!results || results.length === 0) return null;
-
-    const usResult =
-      results.find(
-        (r) =>
-          r.exchange === "NYSE" ||
-          r.exchange === "NASDAQ" ||
-          r.exchange === "AMEX"
-      ) ?? results[0];
-
-    const queryWords = new Set(cleanName.toLowerCase().split(/\s+/));
-    const matchWords = usResult.name.toLowerCase().split(/\s+/);
-    const overlap = matchWords.filter((w) => queryWords.has(w)).length;
-    if (overlap === 0 && cleanName.length > 4) return null;
-
-    const profileRes = await fetch(
-      `https://financialmodelingprep.com/stable/profile?symbol=${encodeURIComponent(usResult.symbol)}&apikey=${fmpKey}`
-    );
-    if (!profileRes.ok) return null;
-    const profiles = await profileRes.json();
-    if (!Array.isArray(profiles) || profiles.length === 0) return null;
-
-    const p = profiles[0] as FmpProfile;
-    if (p.marketCap && p.marketCap < 5_000_000) return null;
-
-    const tags: string[] = [];
-    if (p.marketCap) tags.push(`Mkt Cap: ${formatMarketCap(p.marketCap)}`);
-    if (p.fullTimeEmployees && Number(p.fullTimeEmployees) > 100) {
-      tags.push(`${Number(p.fullTimeEmployees).toLocaleString()} employees`);
-    }
-    if (p.sector) tags.push(p.industry || p.sector);
-
-    return {
-      tags,
-      website: p.website || undefined,
-      logoUrl: p.image || undefined,
-    };
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -198,7 +118,7 @@ interface RequestBody {
 }
 
 export default async function handler(req: Request, _context: Context) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "API key not configured" }), {
       status: 500,
@@ -225,7 +145,7 @@ export default async function handler(req: Request, _context: Context) {
     competitorPromptData,
   } = body;
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, baseURL: "https://api.anthropic.com" });
 
   // Build system message — use promptData (cached) when available
   const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
@@ -473,7 +393,7 @@ Return ONLY valid JSON:
       const enrichments = await Promise.allSettled(
         ideas
           .filter((i: { tier: string }) => i.tier === "specific_company")
-          .map((i: { title: string }) => enrichCompany(i.title, fmpKey))
+          .map((i: { title: string }) => cachedEnrichCompany(i.title, fmpKey))
       );
       let enrichIdx = 0;
       for (const idea of ideas) {

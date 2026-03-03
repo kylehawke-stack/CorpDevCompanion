@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { cachedEnrichCompany, type CompanyEnrichment } from "./lib/fmpCache.js";
 
 interface RankingSummary {
   title: string;
@@ -34,33 +35,6 @@ interface RequestBody {
   competitorProfiles?: CompetitorInfo[];
   promptData?: string;
   competitorPromptData?: string;
-}
-
-interface FmpProfile {
-  symbol: string;
-  companyName: string;
-  marketCap: number;
-  price: number;
-  sector: string;
-  industry: string;
-  country: string;
-  fullTimeEmployees: string;
-  description: string;
-  website: string;
-  image: string;
-}
-
-interface FmpSearchResult {
-  symbol: string;
-  name: string;
-  currency: string;
-  exchange: string;
-}
-
-interface CompanyEnrichment {
-  tags: string[];
-  website?: string;
-  logoUrl?: string;
 }
 
 interface InvenCompany {
@@ -99,88 +73,8 @@ function normalizeBlurb(blurb: string | string[]): string[] {
   return sentences.length > 0 ? sentences : [blurb];
 }
 
-function formatMarketCap(mc: number): string {
-  if (mc >= 1e9) return `$${(mc / 1e9).toFixed(1)}B`;
-  return `$${(mc / 1e6).toFixed(0)}M`;
-}
-
-/**
- * Search FMP for a company by name and return structured enrichment data.
- * Uses fuzzy name matching with validation to avoid wrong-entity matches.
- */
-async function enrichCompany(
-  companyName: string,
-  fmpKey: string
-): Promise<CompanyEnrichment | null> {
-  try {
-    const cleanName = companyName
-      .replace(
-        /\s*(Inc\.?|Corp\.?|Corporation|LLC|Ltd\.?|Holdings?|Co\.?|Group|Brands?|Company)\s*$/i,
-        ""
-      )
-      .trim();
-    const searchRes = await fetch(
-      `https://financialmodelingprep.com/stable/search-name?query=${encodeURIComponent(cleanName)}&apikey=${fmpKey}`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-    if (!searchRes.ok) return null;
-    const results: FmpSearchResult[] = await searchRes.json();
-    if (!results || results.length === 0) return null;
-
-    // Prefer US exchanges
-    const usResult =
-      results.find(
-        (r) =>
-          r.exchange === "NYSE" ||
-          r.exchange === "NASDAQ" ||
-          r.exchange === "AMEX"
-      ) ?? results[0];
-
-    // Validate: the matched name should share significant words with the search query
-    const queryWords = new Set(cleanName.toLowerCase().split(/\s+/));
-    const matchWords = usResult.name.toLowerCase().split(/\s+/);
-    const overlap = matchWords.filter(w => queryWords.has(w)).length;
-    if (overlap === 0 && cleanName.length > 4) return null; // No word overlap = likely wrong entity
-
-    const profileRes = await fetch(
-      `https://financialmodelingprep.com/stable/profile?symbol=${encodeURIComponent(usResult.symbol)}&apikey=${fmpKey}`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-    if (!profileRes.ok) return null;
-    const profiles = await profileRes.json();
-    if (!Array.isArray(profiles) || profiles.length === 0) return null;
-
-    const p = profiles[0] as FmpProfile;
-
-    // Sanity check: skip obviously wrong matches (e.g. $2M market cap for a major company)
-    if (p.marketCap && p.marketCap < 5_000_000) return null;
-
-    const tags: string[] = [];
-
-    if (p.marketCap) {
-      tags.push(`Mkt Cap: ${formatMarketCap(p.marketCap)}`);
-    }
-    if (p.fullTimeEmployees && Number(p.fullTimeEmployees) > 100) {
-      tags.push(
-        `${Number(p.fullTimeEmployees).toLocaleString()} employees`
-      );
-    }
-    if (p.sector) {
-      tags.push(p.industry || p.sector);
-    }
-
-    return {
-      tags,
-      website: p.website || undefined,
-      logoUrl: p.image || undefined,
-    };
-  } catch {
-    return null;
-  }
-}
-
 export default async function handler(req: Request, _context: Context) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "API key not configured" }), {
       status: 500,
@@ -193,7 +87,7 @@ export default async function handler(req: Request, _context: Context) {
   const body: RequestBody = await req.json();
   const { rankings, topStrategicPriorities, bottomStrategicPriorities, competitorProfiles, promptData, competitorPromptData } = body;
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, baseURL: "https://api.anthropic.com" });
 
   // Build system message — use promptData (cached) when available
   const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
@@ -436,7 +330,7 @@ Write your analysis first, then provide valid JSON:
           if (fmpKey) {
             const enrichments = await Promise.allSettled(
               parsed.ideas.map((idea: { title: string }) =>
-                enrichCompany(idea.title, fmpKey)
+                cachedEnrichCompany(idea.title, fmpKey)
               )
             );
             for (let i = 0; i < parsed.ideas.length; i++) {

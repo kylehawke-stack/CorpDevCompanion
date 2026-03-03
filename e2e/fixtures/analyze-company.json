@@ -1,0 +1,78 @@
+{
+  "profile": {
+    "symbol": "HBB",
+    "companyName": "Hamilton Beach Brands Holding Company",
+    "description": "Hamilton Beach Brands Holding Company designs, markets, and distributes small electric household and specialty housewares appliances in the United States and internationally.",
+    "marketCap": 618000000,
+    "price": 28.5,
+    "sector": "Consumer Cyclical",
+    "industry": "Furnishings, Fixtures & Appliances",
+    "ceo": "Mr. Gregory H. Trepp",
+    "fullTimeEmployees": "3,800",
+    "website": "https://www.hamiltonbeach.com",
+    "image": "https://images.financialmodelingprep.com/symbol/HBB.png",
+    "country": "US"
+  },
+  "highlights": [
+    {
+      "label": "Revenue & Growth",
+      "value": "$618M",
+      "detail": "+3.2% YoY growth | 2.1% 3yr CAGR",
+      "observation": "Hamilton Beach's revenue trajectory shows steady, modest growth driven by consumer appliance demand. The 3-year CAGR of 2.1% suggests organic growth alone won't move the needle — M&A could accelerate the top line."
+    },
+    {
+      "label": "Profitability",
+      "value": "31.2% Gross",
+      "detail": "Operating: 5.8% | Net: 3.4%",
+      "observation": "Gross margins are healthy for a consumer products company, but operating and net margins are compressed by SG&A. Acquiring a higher-margin brand could meaningfully improve the blended margin profile."
+    },
+    {
+      "label": "Cash Flow & Firepower",
+      "value": "$42M FCF",
+      "detail": "6.8% FCF yield | $28M cash on hand",
+      "observation": "Free cash flow generation is consistent and provides a foundation for smaller tuck-in acquisitions. The FCF yield of 6.8% is attractive relative to peers."
+    },
+    {
+      "label": "Acquisition Firepower",
+      "value": "$126M",
+      "detail": "3.0x FCF multiplier | D/E: 0.87x",
+      "observation": "With a debt-to-equity ratio of 0.87x (well below the 2.0x ceiling), Hamilton Beach has significant capacity to lever up for acquisitions. Estimated total firepower of $126M could fund a meaningful deal."
+    },
+    {
+      "label": "Leverage & Capacity",
+      "value": "0.87x D/E",
+      "detail": "Net debt: $89M | Interest coverage: 8.2x",
+      "observation": "Conservative balance sheet with ample debt capacity. Interest coverage of 8.2x provides comfortable headroom for additional leverage. This is a strong position from which to pursue acquisitions."
+    },
+    {
+      "label": "Acquisitiveness",
+      "value": "Selective Buyer",
+      "detail": "2 deals in 3 years | $18M total deployed",
+      "observation": "Hamilton Beach has been a selective acquirer, deploying modest capital on strategic tuck-ins. The company has the infrastructure for deals but hasn't been aggressive — suggesting untapped M&A potential."
+    }
+  ],
+  "revenueSegments": [
+    { "name": "Consumer Products", "revenue": 432000000, "percent": 70 },
+    { "name": "Commercial Products", "revenue": 124000000, "percent": 20 },
+    { "name": "Licensing & Other", "revenue": 62000000, "percent": 10 }
+  ],
+  "competitorProfiles": [
+    {
+      "symbol": "SN",
+      "name": "SharkNinja",
+      "marketCap": 15200000000,
+      "industry": "Furnishings, Fixtures & Appliances",
+      "productSegments": ["Cleaning", "Cooking", "Food Preparation"],
+      "isDirect": true
+    },
+    {
+      "symbol": "SPB",
+      "name": "Spectrum Brands",
+      "marketCap": 2900000000,
+      "industry": "Household Products",
+      "productSegments": ["Home & Garden", "Pet Care", "Personal Care"],
+      "isDirect": true
+    }
+  ],
+  "promptData": "COMPANY PROFILE:\n- Name: Hamilton Beach Brands Holding Company (HBB)\n- Market Cap: $618M\n- Share Price: $28.50\n- CEO: Mr. Gregory H. Trepp\n- Sector: Consumer Cyclical — Furnishings, Fixtures & Appliances\n- Employees: 3,800\n- Country: US\n- Description: Hamilton Beach Brands designs, markets, and distributes small electric household appliances.\n\nINCOME STATEMENT (2024-12-31):\n- Revenue: $618M (+3.2% YoY growth, 2.1% 3yr CAGR)\n- Gross Profit: $193M (31.2% margin)\n- Operating Income: $36M (5.8% margin)\n- Net Income: $21M (3.4% margin)\n- EBITDA: $52M\n\nBALANCE SHEET (2024-12-31):\n- Total Assets: $412M\n- Cash & Equivalents: $28M\n- Total Debt: $117M\n- Net Debt: $89M\n- Stockholders' Equity: $135M\n\nCASH FLOW STATEMENT (2024-12-31):\n- Operating Cash Flow: $55M\n- Capital Expenditure: ($13M)\n- Free Cash Flow: $42M\n- Acquisitions: ($6M)\n\nREVENUE BY PRODUCT SEGMENT:\n- Consumer Products: $432M (70%)\n- Commercial Products: $124M (20%)\n- Licensing & Other: $62M (10%)\n\nKEY FINANCIAL METRICS:\n- P/E Ratio: 29.4 | EV/EBITDA: 13.6\n- Return on Equity: 15.6% | Return on Assets: 5.1%\n- Debt/Equity: 0.87 | Current Ratio: 1.8\n- Enterprise Value: $707M"
+}

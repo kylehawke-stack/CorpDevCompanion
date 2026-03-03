@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
-import { fetchPeerData } from '../lib/api.ts';
+import { fetchPeerData, generateBriefing, searchCompany, type CompanySearchResult } from '../lib/api.ts';
 import { Button } from '../components/ui/Button.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
+import { fetchCrowdPeers, recordPeerSelections, mergePeerLists, type CrowdPeer } from '../lib/crowdPeers.ts';
+import type { PeerCompany } from '../types/index.ts';
 
 function formatMarketCap(mc: number): string {
   if (mc >= 1e9) return `$${(mc / 1e9).toFixed(1)}B`;
@@ -11,12 +13,86 @@ function formatMarketCap(mc: number): string {
 }
 
 export function PeerSelectionPage() {
-  const { state, dispatch } = useGameState();
+  const { state, dispatch, getBriefingPromise } = useGameState();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // Typeahead state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [customPeers, setCustomPeers] = useState<PeerCompany[]>([]);
+  const [crowdPeers, setCrowdPeers] = useState<CrowdPeer[]>([]);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
   const peers = state.availablePeers;
+  const { merged: allPeers } = mergePeerLists(peers, crowdPeers, customPeers);
+
+  // Fetch crowd peers on mount
+  useEffect(() => {
+    const symbol = state.companyProfile?.symbol;
+    if (!symbol) return;
+    fetchCrowdPeers(symbol).then(setCrowdPeers).catch(() => {});
+  }, [state.companyProfile?.symbol]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Debounced search
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (value.trim().length < 2) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      const results = await searchCompany(value.trim());
+      // Filter out companies already in the peer list
+      const existingSymbols = new Set(allPeers.map(p => p.symbol));
+      const filtered = results.filter(r => !existingSymbols.has(r.symbol));
+      setSearchResults(filtered);
+      setShowDropdown(filtered.length > 0);
+      setSearchLoading(false);
+    }, 300);
+  }, [allPeers]);
+
+  const handleSelectSearchResult = (result: CompanySearchResult) => {
+    // Add as custom peer
+    const newPeer: PeerCompany = {
+      symbol: result.symbol,
+      name: result.name,
+      marketCap: result.marketCap || 0,
+      industry: '',
+      logo: '',
+    };
+    setCustomPeers(prev => [...prev, newPeer]);
+    // Auto-select it if under limit
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.size < 5) next.add(result.symbol);
+      return next;
+    });
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowDropdown(false);
+  };
 
   const togglePeer = (symbol: string) => {
     setSelected((prev) => {
@@ -38,10 +114,47 @@ export function PeerSelectionPage() {
     const symbols = Array.from(selected);
     dispatch({ type: 'SELECT_PEERS', symbols });
 
+    // Fire-and-forget: record selections to crowd wisdom table
+    const targetSymbol = state.companyProfile?.symbol;
+    if (targetSymbol) {
+      const selectedPeerData = allPeers
+        .filter((p) => selected.has(p.symbol))
+        .map(({ symbol, name, marketCap, industry, logo }) => ({ symbol, name, marketCap, industry, logo }));
+      recordPeerSelections(targetSymbol, selectedPeerData);
+    }
+
     try {
       // Include the target company in the comparison
       const allSymbols = [state.companyProfile!.symbol, ...symbols];
       const { peerFinancials, competitorPromptData } = await fetchPeerData(allSymbols);
+
+      // Wait for briefing to complete before navigating to BriefingPage
+      const briefingPromise = getBriefingPromise();
+      if (briefingPromise && state.ideas.length === 0) {
+        setLoadingStatus('Preparing intelligence briefing...');
+        try {
+          await briefingPromise;
+        } catch {
+          // Briefing failed — retry once WITH competitor data for a richer briefing
+          setLoadingStatus('Retrying briefing with competitor data...');
+          try {
+            const briefing = await generateBriefing(state.promptData!, competitorPromptData);
+            const allHighlights = [...state.financialHighlights, ...(briefing.highlights ?? [])];
+            dispatch({
+              type: 'SET_STRATEGIC_IDEAS',
+              ideas: briefing.ideas,
+              highlights: allHighlights,
+              revenueSegments: state.revenueSegments,
+              competitorProfiles: state.competitorProfiles,
+              promptData: state.promptData,
+            });
+          } catch (retryErr) {
+            console.error('Briefing retry with competitor data failed:', retryErr);
+            // Let BriefingPage handle the final fallback
+          }
+        }
+      }
+
       dispatch({ type: 'SET_PEER_FINANCIALS', peerFinancials, competitorPromptData });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch peer data');
@@ -69,56 +182,80 @@ export function PeerSelectionPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
-          {peers.map((peer) => {
-            const isSelected = selected.has(peer.symbol);
-            return (
-              <button
-                key={peer.symbol}
-                onClick={() => togglePeer(peer.symbol)}
+        <div className="mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {allPeers.map((peer) => {
+              const isSelected = selected.has(peer.symbol);
+              return (
+                <PeerCard
+                  key={peer.symbol}
+                  peer={peer}
+                  isSelected={isSelected}
+                  loading={loading}
+                  onToggle={togglePeer}
+                  selectionCount={peer.selectionCount}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Typeahead: Add Other Competitor */}
+        <div ref={searchRef} className="relative mb-8">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onFocus={() => { if (searchResults.length > 0) setShowDropdown(true); }}
                 disabled={loading}
-                className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
-                  isSelected
-                    ? 'border-accent bg-accent/10 shadow-md'
-                    : 'border-edge bg-surface-card hover:border-edge-light hover:shadow-sm'
-                } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                {peer.logo ? (
-                  <img
-                    src={peer.logo}
-                    alt=""
-                    className="w-8 h-8 rounded object-contain shrink-0 bg-white p-0.5"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded bg-surface-elevated shrink-0 flex items-center justify-center text-xs font-bold text-muted">
-                    {peer.symbol.slice(0, 2)}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-heading truncate">{peer.name}</p>
-                  <p className="text-xs text-muted">{peer.symbol} &middot; Mkt Cap: {formatMarketCap(peer.marketCap)}</p>
+                placeholder="Add another company by name or ticker..."
+                className="w-full px-4 py-3 rounded-xl border-2 border-dashed border-edge bg-surface-card text-sm text-heading placeholder:text-dimmed focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
+              />
+              {searchLoading && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Spinner size="sm" />
                 </div>
-                {isSelected && (
+              )}
+            </div>
+          </div>
+
+          {/* Search Results Dropdown */}
+          {showDropdown && searchResults.length > 0 && (
+            <div className="absolute z-20 w-full mt-1 bg-surface-card border border-edge rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+              {searchResults.map((result) => (
+                <button
+                  key={result.symbol}
+                  onClick={() => handleSelectSearchResult(result)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent/10 transition-colors text-left border-b border-edge last:border-b-0"
+                >
+                  <div className="w-8 h-8 rounded bg-surface-elevated shrink-0 flex items-center justify-center text-xs font-bold text-muted">
+                    {result.symbol.slice(0, 2)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-heading truncate">{result.name}</p>
+                    <p className="text-xs text-muted">{result.symbol} &middot; {result.exchange}</p>
+                  </div>
                   <div className="ml-auto shrink-0">
-                    <svg className="w-5 h-5 text-accent" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                   </div>
-                )}
-              </button>
-            );
-          })}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {loading ? (
           <div className="bg-surface-card rounded-xl shadow-lg border border-edge p-8 text-center">
             <Spinner size="lg" />
             <p className="text-sm text-body font-medium mt-4">
-              Fetching financial data for {selected.size} competitors...
+              {loadingStatus || `Fetching financial data for ${selected.size} competitors...`}
             </p>
             <p className="text-xs text-dimmed mt-1">
-              Pulling income statements and market data for benchmarking
+              {loadingStatus ? 'Almost there' : 'Pulling income statements and market data for benchmarking'}
             </p>
           </div>
         ) : (
@@ -143,5 +280,66 @@ export function PeerSelectionPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function PeerCard({
+  peer,
+  isSelected,
+  loading,
+  onToggle,
+  selectionCount,
+}: {
+  peer: PeerCompany;
+  isSelected: boolean;
+  loading: boolean;
+  onToggle: (symbol: string) => void;
+  selectionCount?: number;
+}) {
+  return (
+    <button
+      onClick={() => onToggle(peer.symbol)}
+      disabled={loading}
+      className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+        isSelected
+          ? 'border-accent bg-accent/10 shadow-md'
+          : 'border-edge bg-surface-card hover:border-edge-light hover:shadow-sm'
+      } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      {peer.logo ? (
+        <img
+          src={peer.logo}
+          alt=""
+          className="w-8 h-8 rounded object-contain shrink-0 bg-white p-0.5"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+      ) : (
+        <div className="w-8 h-8 rounded bg-surface-elevated shrink-0 flex items-center justify-center text-xs font-bold text-muted">
+          {peer.symbol.slice(0, 2)}
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-heading truncate">{peer.name}</p>
+        <p className="text-xs text-muted">
+          {peer.symbol}
+          {peer.marketCap > 0 && <> &middot; Mkt Cap: {formatMarketCap(peer.marketCap)}</>}
+          {selectionCount != null && selectionCount > 1 && (
+            <span className="inline-flex items-center gap-0.5 ml-1.5 text-accent/70">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {selectionCount}
+            </span>
+          )}
+        </p>
+      </div>
+      {isSelected && (
+        <div className="ml-auto shrink-0">
+          <svg className="w-5 h-5 text-accent" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+        </div>
+      )}
+    </button>
   );
 }

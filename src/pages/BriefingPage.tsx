@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
+import { generateBriefing } from '../lib/api.ts';
 import { Button } from '../components/ui/Button.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import { CreateSessionModal } from '../components/session/CreateSessionModal.tsx';
@@ -8,6 +9,8 @@ import { syncPhaseChange } from '../lib/supabaseSync.ts';
 import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
 import { BRIEFING_CARD_GROUPS } from '../types/index.ts';
 import type { FinancialHighlight } from '../types/index.ts';
+import { submitCorrection } from '../lib/briefingCorrections.ts';
+import type { BriefingCorrection } from '../lib/briefingCorrections.ts';
 
 // ── Formatters ──
 
@@ -35,19 +38,97 @@ function StyledText({ text, className = '' }: { text: string; className?: string
 
 /**
  * Extract a quote + attribution from observation text.
- * Matches: As CEO Scott Tidey noted: "quote text"
+ * Handles double quotes, single quotes (with contractions like we're, don't),
+ * and curly/smart quotes.
  */
 function extractQuote(observation: string): { text: string; speaker: string; surrounding: string } | null {
-  const regex = /((?:As\s+)?(?:CEO|CFO|Analyst|analyst|President|SVP|VP|COO)\s+[^:"\u201c]+)(?:noted|said|stated|asked|observed|commented|probed|remarked|explained|highlighted|mentioned|emphasized):\s*["\u201c]([^"\u201d]+)["\u201d]/i;
-  const match = observation.match(regex);
-  if (!match) return null;
+  const VERBS = 'noted|said|stated|asked|observed|commented|probed|remarked|explained|highlighted|mentioned|emphasized|stressed|warned|acknowledged|admitted|argued|believes|suggested|added|responded|countered|challenged|described|revealed|pointed out|contended|claimed';
+  const TITLES = '(?:CEO|CFO|Analyst|analyst|President|SVP|VP|COO|CTO|CMO|CIO|Director|Chairman|Managing Director|Partner|Head of [A-Za-z]+)';
 
-  const speaker = match[1].replace(/^As\s+/i, '').trim();
-  const text = match[2].trim();
-  const quoteStart = observation.indexOf(match[0]);
-  const surrounding = observation.slice(0, quoteStart).trim();
+  // Helper: find the actual end of a single-quoted string, skipping contractions.
+  // A closing ' is one NOT followed by a lowercase letter (e.g., "we're" keeps going).
+  function extractSingleQuoteContent(text: string, startIdx: number): string | null {
+    // startIdx points to the opening ' — scan forward
+    let i = startIdx + 1;
+    while (i < text.length) {
+      if (text[i] === "'" || text[i] === '\u2019') {
+        // Is this a contraction (followed by a lowercase letter)?
+        if (i + 1 < text.length && /[a-z]/.test(text[i + 1])) {
+          i++; // skip, it's a contraction like we're
+          continue;
+        }
+        // Found the real closing quote
+        return text.slice(startIdx + 1, i);
+      }
+      i++;
+    }
+    return null;
+  }
 
-  return { text, speaker, surrounding };
+  // Helper: try to extract quote from a known position where we found an opening quote char
+  function tryExtractFrom(obs: string, quoteStart: number): string | null {
+    const ch = obs[quoteStart];
+    if (ch === '"' || ch === '\u201c') {
+      // Double quote — find closing " or "
+      const closeIdx = obs.indexOf('"', quoteStart + 1) !== -1
+        ? obs.indexOf('"', quoteStart + 1)
+        : obs.indexOf('\u201d', quoteStart + 1);
+      if (closeIdx > quoteStart + 5) return obs.slice(quoteStart + 1, closeIdx);
+    } else if (ch === "'" || ch === '\u2018') {
+      return extractSingleQuoteContent(obs, quoteStart);
+    }
+    return null;
+  }
+
+  // Helper: find a name/title before a given position
+  function findSpeaker(before: string): string {
+    const titleName = before.match(new RegExp(`(?:As\\s+)?${TITLES}\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)`, 'i'));
+    if (titleName) return titleName[0].replace(/^As\s+/i, '').trim();
+    const name = before.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
+    return name ? name[1] : 'Management';
+  }
+
+  // Pattern 1: [Title +] Name + verb + [:|,] + quote
+  const verbPattern = new RegExp(
+    `((?:As\\s+)?(?:${TITLES}\\s+)?[A-Z][a-z]+(?:\\s+[A-Z][a-z]+)+)\\s+(?:${VERBS})(?:\\s*[:,]\\s*|\\s+)(["\u201c'\u2018])`,
+    'i'
+  );
+  const m1 = observation.match(verbPattern);
+  if (m1) {
+    const quoteCharIdx = observation.indexOf(m1[2], observation.indexOf(m1[0]) + m1[1].length);
+    const content = tryExtractFrom(observation, quoteCharIdx);
+    if (content && content.length >= 10) {
+      const speaker = m1[1].replace(/^As\s+/i, '').trim();
+      const fullMatchStart = observation.indexOf(m1[0]);
+      const surrounding = observation.slice(0, fullMatchStart).trim();
+      return { text: content.trim(), speaker, surrounding };
+    }
+  }
+
+  // Pattern 2: ..., noting/saying: "quote"
+  const contextVerb = observation.match(/,\s*(?:noting|saying|stating|adding|explaining|emphasizing|stressing|warning|observing|commenting|remarking)(?:\s*[:,]\s*|\s+)(["'\u201c\u2018])/i);
+  if (contextVerb) {
+    const quoteCharIdx = observation.indexOf(contextVerb[1], observation.indexOf(contextVerb[0]));
+    const content = tryExtractFrom(observation, quoteCharIdx);
+    if (content && content.length >= 10) {
+      const before = observation.slice(0, observation.indexOf(contextVerb[0]));
+      return { text: content.trim(), speaker: findSpeaker(before), surrounding: before.trim() };
+    }
+  }
+
+  // Pattern 3 (fallback): Find any substantial quoted text (20+ chars)
+  for (let i = 0; i < observation.length; i++) {
+    const ch = observation[i];
+    if (ch === '"' || ch === '\u201c' || ch === "'" || ch === '\u2018') {
+      const content = tryExtractFrom(observation, i);
+      if (content && content.length >= 20) {
+        const before = observation.slice(0, i);
+        return { text: content.trim(), speaker: findSpeaker(before), surrounding: before.trim() };
+      }
+    }
+  }
+
+  return null;
 }
 
 // ── Segment bar colors ──
@@ -65,6 +146,32 @@ export function BriefingPage() {
   const [carouselIndexes, setCarouselIndexes] = useState<Record<string, number>>({});
 
   const hasPeerData = state.peerFinancials.length > 0;
+  const [briefingError, setBriefingError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const retryAttempted = useRef(false);
+
+  // Correction/feedback state
+  const [correctionForm, setCorrectionForm] = useState<{ label: string; idx: number } | null>(null);
+  const [correctionType, setCorrectionType] = useState<BriefingCorrection['issue_type']>('hallucination');
+  const [correctionNote, setCorrectionNote] = useState('');
+  const [flaggedCards, setFlaggedCards] = useState<Set<string>>(new Set());
+  const [correctionToast, setCorrectionToast] = useState(false);
+
+  // Auto-retry briefing generation if we land here with no ideas but have promptData
+  useEffect(() => {
+    if (state.ideas.length > 0 || !state.promptData || retryAttempted.current || retrying) return;
+    retryAttempted.current = true;
+    setRetrying(true);
+    generateBriefing(state.promptData).then((briefing) => {
+      const allHighlights = [...state.financialHighlights, ...(briefing.highlights ?? [])];
+      dispatch({ type: 'SET_STRATEGIC_IDEAS', ideas: briefing.ideas, highlights: allHighlights, revenueSegments: state.revenueSegments, competitorProfiles: state.competitorProfiles, promptData: state.promptData });
+      setRetrying(false);
+    }).catch((err) => {
+      console.error('Briefing retry failed:', err);
+      setBriefingError('Failed to generate analysis. Please refresh and try again.');
+      setRetrying(false);
+    });
+  }, [state.ideas.length, state.promptData, retrying, dispatch, state.financialHighlights, state.revenueSegments, state.competitorProfiles]);
 
   const handleContinue = () => {
     const nextPhase = hasPeerData ? 'peer_benchmarking' : 'voting_step1';
@@ -131,6 +238,17 @@ export function BriefingPage() {
                 {[profile?.sector, profile?.industry, profile?.ceo ? `CEO: ${profile.ceo}` : null].filter(Boolean).join(' \u00B7 ')}
               </p>
             </div>
+            {supabase && !state.isCollaborative && state.ideas.length > 0 && (
+              <button
+                onClick={() => setShowCreateSession(true)}
+                className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#f97316]/10 border border-[#f97316]/30 text-[#f97316] hover:bg-[#f97316]/20 hover:border-[#f97316]/50 transition-colors text-sm font-semibold whitespace-nowrap"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Go Live
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-1">
             <span className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316]">
@@ -142,24 +260,6 @@ export function BriefingPage() {
             </span>
           </div>
         </header>
-
-        {/* ── Go Live Banner ── */}
-        {supabase && !state.isCollaborative && state.ideas.length > 0 && (
-          <div className="flex items-center justify-between bg-[#1a2332] border border-[#f97316]/20 rounded-xl px-5 py-3 mb-6">
-            <div className="flex items-center gap-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-[#f97316]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <p className="text-sm text-[#94a3b8]">Invite your team to vote together in real time</p>
-            </div>
-            <button
-              onClick={() => setShowCreateSession(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#f97316]/10 border border-[#f97316]/30 text-[#f97316] hover:bg-[#f97316]/20 hover:border-[#f97316]/50 transition-colors text-sm font-semibold whitespace-nowrap"
-            >
-              Go Live
-            </button>
-          </div>
-        )}
 
         {/* ── KPI Strip ── */}
         {kpiHighlights.length > 0 && (
@@ -256,9 +356,14 @@ export function BriefingPage() {
               if (cards.length === 0) return null;
               const idx = carouselIndexes[label] ?? 0;
               const h = cards[idx];
-              const extracted = extractQuote(h.observation);
+              // Only extract quotes for Earnings Call and Analyst cards — not Competitive Positioning
+              const extracted = label !== 'Competitive Positioning' ? extractQuote(h.observation) : null;
               const hasPrev = idx > 0;
               const hasNext = idx < cards.length - 1;
+
+              const cardKey = `${label}:${idx}`;
+              const isFlagged = flaggedCards.has(cardKey);
+              const isFormOpen = correctionForm?.label === label && correctionForm?.idx === idx;
 
               return (
                 <div key={label} className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-6 relative">
@@ -266,7 +371,24 @@ export function BriefingPage() {
                     <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316]">
                       {h.label}
                     </p>
-                    <p className="text-xs text-[#64748b]">{h.detail}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-[#64748b]">{h.detail}</p>
+                      <button
+                        onClick={() => {
+                          if (isFlagged) return;
+                          setCorrectionForm(isFormOpen ? null : { label, idx });
+                          setCorrectionNote('');
+                          setCorrectionType('hallucination');
+                        }}
+                        className={`p-1 rounded transition-colors ${isFlagged ? 'text-amber-500' : 'text-[#475569] hover:text-[#94a3b8]'}`}
+                        title={isFlagged ? 'Flagged' : 'Report issue'}
+                        aria-label="Report issue"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill={isFlagged ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-16l11 5-11 5m0-10h2a9 9 0 019 0h0" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
 
                   <p className="text-xl font-bold text-[#e2e8f0] mb-4">{h.value}</p>
@@ -290,6 +412,62 @@ export function BriefingPage() {
                     <p className="text-[15px] text-[#94a3b8] leading-relaxed">
                       <StyledText text={h.observation} />
                     </p>
+                  )}
+
+                  {/* Inline correction form */}
+                  {isFormOpen && (
+                    <div className="mt-4 p-4 bg-[#0f1419] border border-[#2a3a4e] rounded-lg">
+                      <div className="flex items-center gap-2 mb-3">
+                        <select
+                          value={correctionType}
+                          onChange={(e) => setCorrectionType(e.target.value as BriefingCorrection['issue_type'])}
+                          className="bg-[#1a2332] border border-[#2a3a4e] text-[#e2e8f0] text-xs rounded px-2 py-1.5"
+                        >
+                          <option value="hallucination">Hallucination</option>
+                          <option value="inaccurate">Inaccurate</option>
+                          <option value="incomplete">Incomplete</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <textarea
+                        value={correctionNote}
+                        onChange={(e) => setCorrectionNote(e.target.value)}
+                        placeholder="Describe the issue (e.g., 'Wolf Gourmet is owned by HBB, not a competitor')"
+                        className="w-full bg-[#1a2332] border border-[#2a3a4e] text-[#e2e8f0] text-sm rounded px-3 py-2 placeholder-[#475569] resize-none"
+                        rows={2}
+                      />
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          onClick={async () => {
+                            if (!correctionNote.trim() || !profile?.symbol) return;
+                            const ok = await submitCorrection({
+                              target_symbol: profile.symbol,
+                              card_label: label,
+                              card_index: idx,
+                              issue_type: correctionType,
+                              original_text: h.observation.slice(0, 500),
+                              user_note: correctionNote.trim(),
+                            });
+                            if (ok) {
+                              setFlaggedCards(prev => new Set(prev).add(cardKey));
+                              setCorrectionToast(true);
+                              setTimeout(() => setCorrectionToast(false), 3000);
+                            }
+                            setCorrectionForm(null);
+                          }}
+                          disabled={!correctionNote.trim()}
+                          className="px-3 py-1.5 text-xs font-semibold rounded bg-[#f97316]/20 text-[#f97316] border border-[#f97316]/30 hover:bg-[#f97316]/30 disabled:opacity-40 disabled:cursor-default transition-colors"
+                        >
+                          Submit
+                        </button>
+                        <button
+                          onClick={() => setCorrectionForm(null)}
+                          className="px-3 py-1.5 text-xs text-[#64748b] hover:text-[#94a3b8] transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   )}
 
                   {/* Carousel controls */}
@@ -331,9 +509,20 @@ export function BriefingPage() {
           </div>
         ) : state.ideas.length === 0 ? (
           <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-8 mb-10 text-center">
-            <Spinner size="lg" />
-            <p className="text-sm text-[#e2e8f0] mt-3">Generating strategic analysis...</p>
-            <p className="text-xs text-[#64748b] mt-1">Synthesizing earnings calls, analyst data, and competitive landscape</p>
+            {briefingError ? (
+              <>
+                <p className="text-sm text-red-400 mt-3">{briefingError}</p>
+                <Button onClick={() => window.location.reload()} size="sm" className="mt-4">
+                  Refresh Page
+                </Button>
+              </>
+            ) : (
+              <>
+                <Spinner size="lg" />
+                <p className="text-sm text-[#e2e8f0] mt-3">Generating strategic analysis...</p>
+                <p className="text-xs text-[#64748b] mt-1">Synthesizing earnings calls, analyst data, and competitive landscape</p>
+              </>
+            )}
           </div>
         ) : null}
 
@@ -356,6 +545,13 @@ export function BriefingPage() {
         {/* Create Session Modal */}
         {showCreateSession && (
           <CreateSessionModal onClose={() => setShowCreateSession(false)} />
+        )}
+
+        {/* Correction submitted toast */}
+        {correctionToast && (
+          <div className="fixed bottom-6 right-6 bg-[#1a2332] border border-[#f97316]/30 text-[#e2e8f0] text-sm px-4 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-bottom-2">
+            Correction saved — will be used in future analyses
+          </div>
         )}
       </div>
     </div>

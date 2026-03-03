@@ -1,4 +1,5 @@
 import type { Idea, RankedIdea, CompanyProfile, FinancialHighlight, RevenueSegment, CompetitorProfile, PeerCompany, PeerFinancials } from '../types/index.ts';
+import { fetchCorrections, formatCorrectionsForPrompt } from './briefingCorrections.ts';
 
 const BASE_URL = '/.netlify/functions';
 
@@ -39,10 +40,21 @@ export async function generateBriefing(promptData: string, competitorPromptData?
   highlights: FinancialHighlight[];
   ideas: Idea[];
 }> {
+  // Extract symbol from promptData and fetch corrections for it
+  const symbolMatch = promptData.match(/\(([A-Z]{1,6})\)/);
+  const symbol = symbolMatch?.[1];
+  let corrections = '';
+  if (symbol) {
+    try {
+      const correctionsList = await fetchCorrections(symbol);
+      corrections = formatCorrectionsForPrompt(correctionsList);
+    } catch { /* corrections are best-effort */ }
+  }
+
   const response = await fetch(`${BASE_URL}/generate-briefing`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ promptData, competitorPromptData }),
+    body: JSON.stringify({ promptData, competitorPromptData, corrections }),
   });
 
   if (!response.ok) {
@@ -346,4 +358,18 @@ export async function fetchPeerData(symbols: string[]): Promise<{ peerFinancials
     peerFinancials: data.peerFinancials as PeerFinancials[],
     competitorPromptData: data.competitorPromptData as string | undefined,
   };
+}
+
+export interface CompanySearchResult {
+  symbol: string;
+  name: string;
+  exchange: string;
+  marketCap?: number;
+}
+
+export async function searchCompany(query: string): Promise<CompanySearchResult[]> {
+  if (query.length < 2) return [];
+  const response = await fetch(`${BASE_URL}/search-company?query=${encodeURIComponent(query)}`);
+  if (!response.ok) return [];
+  return response.json();
 }
