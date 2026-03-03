@@ -17,12 +17,12 @@ export function phaseToStep(phase: string): number {
   switch (phase) {
     case 'welcome':
     case 'analyzing':
+    case 'how_it_works':
       return 1;
     case 'peer_selection':
     case 'peer_benchmarking':
       return 2;
     case 'briefing':
-    case 'how_it_works':
       return 2; // briefing is output of step 2, user is about to start step 3
     case 'voting_step1':
       return 3;

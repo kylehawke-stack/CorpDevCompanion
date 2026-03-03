@@ -276,7 +276,7 @@ export interface GameState {
   votes: Vote[];
   totalVoteCount: number;
   lastInjectionAtVoteCount: number;
-  phase: 'welcome' | 'analyzing' | 'peer_selection' | 'peer_benchmarking' | 'briefing' | 'voting_step1' | 'transition1' | 'voting_step2' | 'transition2' | 'voting_step3' | 'results';
+  phase: 'welcome' | 'how_it_works' | 'analyzing' | 'peer_selection' | 'peer_benchmarking' | 'briefing' | 'voting_step1' | 'transition1' | 'voting_step2' | 'transition2' | 'voting_step3' | 'results';
   strategicContext?: StrategicContext;
   step1VoteCount: number;
   step2VoteCount: number;

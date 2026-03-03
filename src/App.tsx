@@ -41,8 +41,9 @@ function AppRouter() {
   switch (state.phase) {
     case 'welcome':
       return <WelcomePage />;
+    case 'how_it_works':
     case 'analyzing':
-      return <WelcomePage />;
+      return <HowItWorksPage />;
     case 'peer_selection':
       return <PeerSelectionPage />;
     case 'peer_benchmarking':
