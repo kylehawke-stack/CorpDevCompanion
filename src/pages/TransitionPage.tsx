@@ -91,7 +91,7 @@ export function TransitionPage() {
     return () => { cancelled = true; };
   }, [retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const stepLabel = isTransition1 ? 'Step 1 Complete' : 'Step 2 Complete';
+  const stepLabel = isTransition1 ? 'Step 3 Complete' : 'Step 4 Complete';
   const description = isTransition1
     ? `${state.step1VoteCount} votes cast across strategic priorities`
     : `${state.step2VoteCount} votes cast across market segments and product categories`;
