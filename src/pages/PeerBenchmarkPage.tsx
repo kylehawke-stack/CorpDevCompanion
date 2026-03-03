@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
 import { Button } from '../components/ui/Button.tsx';
+import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -244,6 +245,11 @@ export function PeerBenchmarkPage() {
   return (
     <div className="min-h-screen bg-[#0f1419] py-10 px-4">
       <div className="max-w-7xl mx-auto">
+
+        {/* Progress Tracker */}
+        <div className="hidden md:flex justify-end mb-4">
+          <ProgressTracker currentStep={phaseToStep(state.phase)} />
+        </div>
 
         {/* Header */}
         <div className="mb-8">

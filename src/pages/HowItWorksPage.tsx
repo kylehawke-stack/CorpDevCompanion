@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
 import { analyzeCompany, generateBriefing, fetchPeers } from '../lib/api.ts';
 import type { PeerCompany } from '../types/index.ts';
+import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
 
 // ── Step / Zone data ────────────────────────────────────────────────────
 
@@ -220,6 +221,11 @@ export function HowItWorksPage() {
   return (
     <div className="min-h-screen bg-[#0f1419]">
       <div className="max-w-4xl mx-auto px-4 py-12">
+        {/* ── Progress Tracker ── */}
+        <div className="hidden md:flex justify-end mb-6">
+          <ProgressTracker currentStep={phaseToStep(state.phase)} />
+        </div>
+
         {/* ── Page Header ── */}
         <div className="text-center mb-14">
           <p className="uppercase tracking-widest text-xs font-semibold text-[#f97316] mb-3">

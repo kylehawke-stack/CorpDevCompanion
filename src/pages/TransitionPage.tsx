@@ -5,6 +5,7 @@ import { generateSeedIdeas, generateCompanyIdeas } from '../lib/api.ts';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import { Badge } from '../components/ui/Badge.tsx';
 import { SpectrumResults } from '../components/dashboard/SpectrumResults.tsx';
+import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
 
 export function TransitionPage() {
   const { state, dispatch } = useGameState();
@@ -101,7 +102,11 @@ export function TransitionPage() {
     : 'Generating company acquisition targets based on your top themes...';
 
   return (
-    <div className="min-h-screen bg-surface-base flex items-center justify-center">
+    <div className="min-h-screen bg-surface-base flex flex-col">
+      <div className="hidden md:flex justify-end px-6 pt-4">
+        <ProgressTracker currentStep={phaseToStep(state.phase)} />
+      </div>
+      <div className="flex-1 flex items-center justify-center">
       <div className="max-w-2xl w-full mx-4">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-heading">{stepLabel}</h1>
@@ -154,6 +159,7 @@ export function TransitionPage() {
             </div>
           ) : null}
         </div>
+      </div>
       </div>
     </div>
   );
