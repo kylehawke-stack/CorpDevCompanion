@@ -15,8 +15,8 @@ Formatting notes:
 ### Page Header
 
 - Label: `HOW IT WORKS`
-- Heading: `From financial analysis to M&A shortlist in six steps`
-- Subheading: `CorpDev Companion combines rigorous financial analysis with collaborative team input to produce a consensus-driven acquisition strategy. Here is the full process.`
+- Heading: `Expert guidance and team alignment on your M&A strategy`
+- Subheading: `Corp Dev Companion combines rigorous financial and market analysis with collaborative team input to produce a consensus-driven acquisition strategy. Here is the full process.`
 
 ---
 
@@ -28,15 +28,15 @@ Formatting notes:
 
 - **Title:** `Company Analysis`
 - [BADGE]: `System`
-- **Description:** `CorpDev Companion ingests financial statements, earnings calls, analyst coverage, and competitive data to build a complete picture of the company's M&A starting position -- revenue trajectory, margins, leverage, acquisition history, and available firepower.`
+- **Description:** `Corp Dev Companion ingests your company's financial statements, earnings calls, analyst coverage, and competitive data to build a complete picture of the company's M&A starting position -- revenue trajectory, margins, leverage, acquisition history, and available firepower.`
 - **Outputs:** `Financial highlights` | `Revenue mix breakdown` | `Acquisition firepower estimate` | `Earnings call insights` | `Analyst perspectives`
 
 #### Step 2 -- Benchmark
 
 - **Title:** `Peer Benchmarking`
 - [BADGE]: `System`
-- **Description:** `Selected competitors are benchmarked across every key metric -- revenue, margins, valuation, returns on capital, leverage, and acquisition firepower. This shows where the company leads, lags, and has room to grow through M&A.`
-- **Outputs:** `Peer financial comparison` | `Relative valuation analysis` | `Competitive firepower ranking` | `Key takeaways`
+- **Description:** `Selected competitors are benchmarked across the same key metric -- revenue, margins, valuation, returns on capital, leverage, and acquisition firepower. This shows where the company leads, lags, and has room to grow through M&A.`
+- **Outputs:** `Peer financial comparison` | `Relative valuation analysis` | `Historical acquisitiveness` | `Competitive firepower ranking` 
 
 ---
 
@@ -48,54 +48,54 @@ Formatting notes:
 
 - **Title:** `Strategic Priorities`
 - [BADGE]: `Team Input`
-- **Vote info:** `~25 comparisons, ~2 min`
+- **Vote info:** `Decide how you want to use M&A`
 - **Description:** `Your team votes on 6 strategic dimensions using quick pairwise comparisons -- growth objective, target profile, risk posture, integration approach, capability priority, and strategic proximity. Each vote is simply choosing between two options.`
 - **Outputs:** `Force-ranked strategic priorities` | `Positioning on each spectrum` | `Team consensus baseline`
-- **Flow note:** `Your strategic priorities feed directly into Step 4 to generate relevant market segments.`
+- **Flow note:** `Your strategic priorities inform Step 4.`
 
 #### Step 4 -- Prioritize Markets
 
-- **Title:** `Market Segments`
+- **Title:** `Market Segments and Product Categories`
 - [BADGE]: `Team Input`
-- **Vote info:** `~50 comparisons, ~5 min`
-- **Description:** `Based on your strategic priorities, CorpDev Companion generates relevant market segments and product categories. Your team compares pairs to identify the most promising areas for acquisition -- narrowing a broad landscape into focused hunting grounds.`
+- **Vote info:** `Prioritize and narrow down where you use M&A`
+- **Description:** `Based on your strategic priorities, Corp Dev Companion generates relevant market segments and product categories. Your team compares pairs to identify the most promising areas for acquisition. New adjacencies are injected real-time based on your voting.`
 - **Outputs:** `Ranked market segments` | `Ranked product categories` | `Refined search parameters`
-- **Flow note:** `Your top segments and categories feed into Step 5 to identify specific companies.`
+- **Flow note:** `Your top segments and categories feed into Step 5.`
 
 #### Step 5 -- Identify Targets
 
 - **Title:** `Target Companies`
 - [BADGE]: `Team Input`
-- **Vote info:** `Open-ended, add more anytime`
-- **Description:** `From your top segments and categories, CorpDev Companion identifies specific acquisition targets. Your team compares companies head-to-head to build a ranked shortlist grounded in both strategic alignment and team consensus.`
+- **Vote info:** `Prioritize and rank the universe of relevant targets`
+- **Description:** `From your top segments and categories, Corp Dev Companion identifies specific acquisition targets. Your team compares companies head-to-head to build a ranked shortlist grounded in both strategic alignment and team consensus.`
 - **Outputs:** `Ranked target companies` | `Head-to-head comparison data` | `Consensus-driven shortlist`
-- **Flow note:** `Your ranked targets become the foundation of the final strategic brief.`
+- **Flow note:** `Your ranked targets are aligned with the team prior to outreach.`
 
 ---
 
 ### Zone 3: "The deliverable"
 
-[ZONE LABEL]: `THE DELIVERABLE`
+[ZONE LABEL]: `SUMMARIZE AND SYNTHESIZE THE RESULT`
 
 #### Step 6 -- Strategic Brief
 
 - **Title:** `Strategic Brief`
 - [BADGE]: `Output`
-- **Description:** `All votes are synthesized into a comprehensive strategic brief -- force-ranked priorities, market focus areas, and target companies, informed by external M&A best practices. This is the artifact your team takes into deal discussions.`
-- **Outputs:** `Force-ranked results across all tiers` | `Strategic narrative` | `M&A best practices alignment`
+- **Description:** `All votes are synthesized into a comprehensive strategic brief which is informed by your personalized starting point, team alignment, and proven M&A best practices. This is your M&A strategy - a north star to guide all deal discussions.`
+- **Outputs:** `Force-ranked priorities` | `Aligned executive team` | `M&A "North Star"` | `Strategic narrative for deal discussions` |  `M&A best practices`
 
 ---
 
 ### Pairwise Voting Explainer Section
 
 - [ZONE LABEL]: `WHY PAIRWISE COMPARISONS?`
-- **Heading:** `Making the complex simple`
-- **Body:** `Instead of asking people to rank a long list (which is slow and cognitively exhausting), we show two options at a time. Just pick the one you think matters more. That is it.`
+- **Heading:** `Make the complex simple`
+- **Body:** `Instead of endless meetings, Powerpoints, and debates, M&A strategy is boiled down to something super simple: pick the better of two options... many times. Proven statistical models do the rest.`
 
-- **Bullet 1 -- Fast:** `Each comparison takes a few seconds, not minutes`
-- **Bullet 2 -- Intuitive:** `No complex scoring rubrics or forced ranking`
-- **Bullet 3 -- Rigorous:** `Bradley-Terry model produces statistically valid rankings from simple inputs`
-- **Bullet 4 -- Collaborative:** `Multiple team members vote independently, results aggregate automatically`
+- **Bullet 1 -- Fast:** `Each comparison takes a few seconds, not an hour long meeting`
+- **Bullet 2 -- Intuitive:** `No complex scoring rubrics subject to individual bias`
+- **Bullet 3 -- Rigorous:** `Proven model ("Bradley-Terry") produces statistically valid rankings from many votes`
+- **Bullet 4 -- Collaborative:** `Multiple team members vote independently, results aggregate real-time`
 
 Example comparison card:
 - Option A: `Market Share Consolidation` (dimension: `Growth Objective`)
@@ -111,9 +111,9 @@ Example comparison card:
 - **Body:** `The more people who vote, the more reliable the consensus rankings become. Share the session code with colleagues so they can contribute their own comparisons. All votes are aggregated into a single consensus ranking.`
 
 Confidence thresholds:
-- `25+ votes` -- `Directional`
-- `50+ votes` -- `Strong signal`
-- `100+ votes` -- `High confidence`
+- `25+ votes / 2 people` -- `Directional`
+- `50+ votes / 3 people` -- `Strong signal`
+- `100+ votes / 5 people` -- `High confidence`
 
 - Session code display: `{sessionCode}` (e.g. `AFBK3UCR`)
 - Button: `Copy invite link`
@@ -124,7 +124,7 @@ Confidence thresholds:
 ### CTA
 
 - Button: `Begin Step 3: Strategic Priorities`
-- Caption: `6 dimensions, ~25 comparisons, ~2 minutes`
+- Caption: `6 dimensions, ~25 comparisons, ~5 minutes per person`
 
 ---
 ---
@@ -134,12 +134,12 @@ Confidence thresholds:
 Six numbered circles connected by thin lines. Completed steps show a checkmark. Current step is enlarged with a label underneath.
 
 Step labels (shown only when that step is current):
-1. `Analyze`
-2. `Benchmark`
-3. `Strategy`
-4. `Markets`
-5. `Targets`
-6. `Brief`
+1. `Analyze Starting Point`
+2. `Benchmark Peers`
+3. `Set Strategy`
+4. `Prioritize Markets`
+5. `Prioritize Targets`
+6. `Summarize Result`
 
 Info icon tooltip (on hover): `View full process`
 
@@ -189,7 +189,7 @@ Info icon tooltip (on hover): `View full process`
 [ZONE LABEL]: `DELIVERABLE`
 
 **Step 6 -- Strategic Brief**
-- Current-step description: `Review force-ranked results and the consensus-driven strategic brief.`
+- Current-step description: `Create and refine your M&A strategy - a "North Star" to guide all M&A activity and deal discussions.`
 
 ---
 

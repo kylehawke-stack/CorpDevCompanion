@@ -181,12 +181,12 @@ export function VotingArena({ onViewResults }: VotingArenaProps) {
         <div className="flex items-center gap-3">
           {state.phase === 'voting_step2' && (
             <Button variant="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'voting_step1' })}>
-              &larr; Back to Step 1
+              &larr; Back to Step 3
             </Button>
           )}
           {state.phase === 'voting_step3' && (
             <Button variant="ghost" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'voting_step2' })}>
-              &larr; Back to Step 2
+              &larr; Back to Step 4
             </Button>
           )}
           <Button variant="ghost" onClick={skipPair}>

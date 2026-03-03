@@ -5,6 +5,7 @@ import { Spinner } from '../components/ui/Spinner.tsx';
 import { CreateSessionModal } from '../components/session/CreateSessionModal.tsx';
 import { supabase } from '../lib/supabase.ts';
 import { syncPhaseChange } from '../lib/supabaseSync.ts';
+import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
 import { BRIEFING_CARD_GROUPS } from '../types/index.ts';
 import type { FinancialHighlight } from '../types/index.ts';
 
@@ -98,6 +99,11 @@ export function BriefingPage() {
   return (
     <div className="min-h-screen bg-[#0f1419] py-10 px-4">
       <div className="max-w-7xl mx-auto">
+
+        {/* ── Progress Tracker ── */}
+        <div className="hidden md:flex justify-end mb-4">
+          <ProgressTracker currentStep={phaseToStep(state.phase)} />
+        </div>
 
         {/* ── Company Header ── */}
         <header className="mb-8">

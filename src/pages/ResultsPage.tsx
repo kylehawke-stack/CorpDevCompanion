@@ -6,6 +6,7 @@ import { SpectrumResults } from '../components/dashboard/SpectrumResults.tsx';
 import { TierFilter, type FilterOption } from '../components/dashboard/TierFilter.tsx';
 import { StrategicNarrative } from '../components/dashboard/StrategicNarrative.tsx';
 import { Button } from '../components/ui/Button.tsx';
+import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
 
 export function ResultsPage() {
   const { state, dispatch } = useGameState();
@@ -43,11 +44,16 @@ export function ResultsPage() {
       {/* Top bar */}
       <header className="bg-[#1a2332] border-b border-[#2a3a4e] px-6 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-white">CorpDev Companion</h1>
-            <p className="text-xs text-[#94a3b8]">
-              {state.sessionName} &middot; {state.totalVoteCount} votes
-            </p>
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-lg font-semibold text-white">CorpDev Companion</h1>
+              <p className="text-xs text-[#94a3b8]">
+                {state.sessionName} &middot; {state.totalVoteCount} votes
+              </p>
+            </div>
+            <div className="hidden md:block">
+              <ProgressTracker currentStep={phaseToStep(state.phase)} />
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="secondary" onClick={handleBackToVoting}>
