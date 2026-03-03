@@ -169,6 +169,18 @@ export function WelcomePage() {
                 >
                   Voting Intro
                 </a>
+                <a
+                  href="#how-it-works"
+                  className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
+                >
+                  How It Works
+                </a>
+                <a
+                  href="#tracker-demo"
+                  className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
+                >
+                  Tracker Demo
+                </a>
               </div>
             </>
           ) : (
