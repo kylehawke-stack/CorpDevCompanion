@@ -148,35 +148,53 @@ Use this competitive intelligence to INSPIRE ideas for the target company:
 `;
   }
 
-  const taskPrompt = `${prioritiesSection}${competitorSection}
-Generate exactly 12 M&A target ideas to evaluate. These should span two tiers:
+  const companyName = companyProfile?.companyName ?? "the target company";
 
-1. **Market Segments** (6 ideas) — broad market categories the company could enter/expand in
-2. **Product Categories** (6 ideas) — specific product types within relevant markets
+  const taskPrompt = `${prioritiesSection}${competitorSection}
+STEP 1 — ANALYSIS (think through this before generating):
+Before generating ideas, briefly identify:
+- What market segments and product categories does ${companyName} CURRENTLY operate in? (List them)
+- What adjacent or new areas do the top strategic priorities suggest?
+- What gaps exist vs. competitors?
+Write 3-5 sentences of analysis, then provide the JSON below.
+
+STEP 2 — GENERATE IDEAS:
+Generate exactly 20 M&A target ideas to evaluate. These should span two tiers:
+
+1. **Market Segments** (10 ideas) — broad market categories the company could enter or expand in
+2. **Product Categories** (10 ideas) — specific product types within relevant markets
 
 Do NOT include specific company targets — those will be generated later based on voting results.
 
-Requirements:
-- Mix obvious adjacencies with creative/contrarian ideas
-- Include at least 2 ideas that build on recent acquisitions or strategic moves
-- Include at least 2 "left field" ideas that challenge conventional thinking
+DIVERSITY REQUIREMENTS:
+- At least 3 of the 10 market segments must be NON-OBVIOUS or contrarian — categories the company does not currently compete in and that would surprise a typical analyst
+- At least 3 of the 10 product categories must be categories the company does NOT currently sell — genuine new territory
+- If you include a segment/category ${companyName} already operates in, frame it as a consolidation/defense play and note that in the blurb
+- Do NOT generate ideas that are just restatements of the company's existing business — focus on new GROWTH opportunities
+- Include at least 2 ideas inspired by recent acquisitions, earnings call themes, or strategic moves
+- Include at least 2 "left field" ideas that challenge conventional thinking about where this company should go
 
 BULLET FORMAT RULES (critical):
 - "blurb" must be a JSON array of 3-5 strings
+- The FIRST bullet must be a plain-English sentence a non-expert would understand — no jargon
 - Each bullet must be under 15 words — punchy, scannable
 - Use **bold** markdown on the key phrase in important bullets (not every bullet)
 - Each bullet is a distinct strategic point, not a continuation of a sentence
 
-Example of GOOD bullets:
-["**$8B addressable market** growing 12% annually", "Natural extension of kitchen portfolio", "Recent acquisition opens **healthcare adjacency**"]
+EXAMPLE OF A COMPLETE GOOD ENTRY:
+{
+  "title": "Commercial Foodservice Equipment",
+  "tier": "market_segment",
+  "blurb": ["**Restaurants and hotels** need the same products, sold differently", "B2B channel offers **higher margins** than retail", "$12B market growing 6% annually with fragmented competitors", "Leverages existing manufacturing and brand trust"]
+}
 
-Return ONLY valid JSON:
+Return your analysis first, then valid JSON in this format:
 {
   "ideas": [
     {
       "title": "string",
       "tier": "market_segment" | "product_category",
-      "blurb": ["**Bold key point** plus context", "Second short bullet", "Third short bullet"]
+      "blurb": ["First bullet plain English", "**Bold key point** plus context", "Third short bullet"]
     }
   ]
 }`;
@@ -185,7 +203,7 @@ Return ONLY valid JSON:
     const message = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 4000,
-      temperature: 0.9,
+      temperature: 0.8,
       system: systemBlocks,
       messages: [{ role: "user", content: taskPrompt }],
     });

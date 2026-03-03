@@ -318,7 +318,7 @@ export default async function handler(req: Request, _context: Context) {
     const votesSinceLastInjection = lastInjectionAtVoteCount
       ? totalVotes - lastInjectionAtVoteCount
       : totalVotes;
-    injectionFeedback = `\nPrevious AI-injected idea performance (${votesSinceLastInjection} votes since last injection):
+    injectionFeedback = `\nPreviously injected idea performance (${votesSinceLastInjection} votes since last injection):
 ${injectedPerformance
   .map(
     (p) =>
@@ -350,43 +350,22 @@ Follow these directions closely. If they say "focus more on X", generate ideas i
     }
   }
 
-  // For Step 3, load Inven pool and filter to unused companies
+  // For Step 3, load full Inven pool and exclude already-used companies
   let invenSection = "";
   const invenPool = votingStep === "step3" ? loadInvenPool() : [];
-  const invenRemaining: InvenCompany[] = [];
   if (invenPool.length > 0) {
     const existingLower = new Set(existingTitles.map((t) => t.toLowerCase()));
-    for (const c of invenPool) {
-      const nameLower = c.name.toLowerCase();
-      // Skip if already used (exact or fuzzy match)
-      if (existingLower.has(nameLower)) continue;
-      if (existingTitles.some((t) => isSimilar(c.name, t))) continue;
-      invenRemaining.push(c);
-    }
-    // Take a keyword-relevant sample of 10-15
-    const stopWords = new Set(["and", "the", "for", "with", "from", "into", "that", "this", "are", "was", "has"]);
-    const keywords = new Set<string>();
-    for (const r of rankings.slice(0, 10)) {
-      r.title.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/)
-        .filter((w) => w.length > 2 && !stopWords.has(w))
-        .forEach((w) => keywords.add(w));
-    }
-    // Score and sort
-    const scored = invenRemaining.map((c) => {
-      const text = `${c.name} ${c.desc}`.toLowerCase();
-      let score = 0;
-      for (const kw of keywords) {
-        if (text.includes(kw)) score++;
-      }
-      return { company: c, score };
+    const invenRemaining = invenPool.filter((c) => {
+      if (existingLower.has(c.name.toLowerCase())) return false;
+      if (existingTitles.some((t) => isSimilar(c.name, t))) return false;
+      return true;
     });
-    scored.sort((a, b) => b.score - a.score);
-    const poolSample = scored.slice(0, 15).map((s) => s.company);
+    console.log(`[inject-ideas] Inven pool: ${invenPool.length} total, ${invenRemaining.length} not yet used`);
 
-    if (poolSample.length > 0) {
+    if (invenRemaining.length > 0) {
       invenSection = `
-ADDITIONAL INVEN.AI CANDIDATES (not yet included in voting):
-${poolSample.map((c) => `- ${c.name}: ${c.desc.slice(0, 150)}`).join("\n")}
+INVEN.AI CANDIDATE POOL — Pre-screened acquisition targets not yet in voting (${invenRemaining.length} companies):
+${invenRemaining.map((c, i) => `${i + 1}. ${c.name} (${c.url})\n   ${c.desc}`).join("\n")}
 Consider 1-2 of these if they align with voting trends. Mark them with "fromPool": true.
 `;
     }
@@ -406,15 +385,23 @@ Total votes cast: ${totalVotes}
 
 Existing ideas (do NOT duplicate these, not even paraphrases or near-duplicates): ${existingTitles.join(", ")}
 
-DEDUP RULE: Do NOT generate ideas that are semantically the same as existing ones with slightly different wording (e.g., "Commercial Food Service Equipment" vs "Commercial Foodservice Equipment"). Each new idea must represent a genuinely distinct concept.
+DEDUP RULE — READ CAREFULLY:
+Before generating ANY idea, mentally check it against EVERY existing idea above. Do NOT generate ideas that are:
+- The same concept with different wording (e.g., "Commercial Food Service Equipment" vs "Commercial Foodservice Equipment")
+- A subset of an existing idea (e.g., "Coffee Machines" when "Beverage Equipment" already exists)
+- A superset that subsumes an existing idea
+- The same company/segment described from a different angle
+Each new idea must represent a genuinely DISTINCT concept that is not already covered.
 
 ${tierGuidance}
 
-Instructions:
+STEP 1 — Brief analysis (2-3 sentences):
+What patterns do the top-ranked and bottom-ranked ideas reveal? What gap or opportunity is NOT yet represented?
+
+STEP 2 — Generate ideas:
 - Generate ideas that EXPLORE the themes revealed by top-ranked items
 - Align with the company profile and strategic priorities
 - Include ONE contrarian/surprising idea that challenges the revealed preferences
-- Do NOT explain your reasoning — just provide the ideas
 - Ideas should be specific and actionable
 BULLET FORMAT RULES (critical):
 - "blurb" must be a JSON array of 3-5 strings

@@ -104,6 +104,8 @@ export function ResultsPage() {
             rankings={rankings}
             totalVotes={state.totalVoteCount}
             sessionName={state.sessionName}
+            promptData={state.promptData}
+            competitorPromptData={state.competitorPromptData}
           />
         </section>
       </main>

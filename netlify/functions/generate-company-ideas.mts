@@ -67,6 +67,8 @@ interface InvenCompany {
   name: string;
   url: string;
   desc: string;
+  employees?: number | string;      // Stub: will be populated with employee count data
+  estimatedRevenue?: string;         // Stub: will be populated with estimated revenue data
 }
 
 /**
@@ -197,7 +199,7 @@ export default async function handler(req: Request, _context: Context) {
   const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
     {
       type: "text" as const,
-      text: "You are a senior M&A strategist advising Hamilton Beach Brands (NYSE: HBB) on specific company acquisition targets.",
+      text: `You are a senior M&A strategist advising on specific company acquisition targets for an M&A screening exercise.`,
     },
   ];
 
@@ -280,10 +282,22 @@ Use these competitors to INSPIRE acquisition target ideas for the target company
   if (invenPool.length > 0) {
     invenSection = `
 INVEN.AI CANDIDATE POOL — Pre-screened acquisition targets (${invenPool.length} companies):
-${invenPool.map((c, i) => `${i + 1}. ${c.name} (${c.url})\n   ${c.desc}`).join("\n")}
+${invenPool.map((c, i) => {
+      let line = `${i + 1}. ${c.name} (${c.url})`;
+      const meta: string[] = [];
+      if (c.employees) meta.push(`~${c.employees} employees`);
+      if (c.estimatedRevenue) meta.push(`Est. revenue: ${c.estimatedRevenue}`);
+      if (meta.length > 0) line += ` [${meta.join(", ")}]`;
+      line += `\n   ${c.desc}`;
+      return line;
+    }).join("\n")}
 
 `;
   }
+
+  // Build valid linkedTheme values for O
+  const validThemes = rankings.slice(0, 10).map(r => r.title);
+  const validThemesStr = validThemes.map(t => `"${t}"`).join(", ");
 
   const taskPrompt = `${prioritiesSection}${competitorSection}${invenSection}
 Based on Step 2 voting results, the team has identified these strategic priorities:
@@ -291,6 +305,16 @@ Based on Step 2 voting results, the team has identified these strategic prioriti
 Top-ranked market segments and product categories:
 ${topRankings}
 
+ACQUISITION SIZING CONSTRAINT:
+The acquirer's financial profile is in the system context above. Realistic acquisition targets should be in the $25M-$300M enterprise value range. Any target above $300M EV should be flagged in the blurb as a "stretch deal requiring significant leverage or equity." Do NOT suggest targets that would be larger than the acquirer itself.
+
+STEP 1 — ANALYSIS (think through this before generating):
+Review the top-ranked themes, the company's financial profile, the competitive landscape, and the Inven pool. In 3-5 sentences, identify:
+- Which ranked themes suggest the most actionable acquisition targets?
+- What company size range makes sense given the acquirer's resources?
+- What gaps in the Inven pool should you fill with your own suggestions?
+
+STEP 2 — GENERATE TARGETS:
 Generate SPECIFIC COMPANY acquisition targets that align with these top-ranked themes.
 ${invenPool.length > 0 ? `
 INSTRUCTIONS FOR CANDIDATE POOL:
@@ -299,36 +323,48 @@ INSTRUCTIONS FOR CANDIDATE POOL:
 - Evaluate pool companies critically — don't include one just because it's listed
 - For pool companies, write blurb bullets based on the description provided
 - Mark each company with "fromPool": true if from the pool, "fromPool": false if your own suggestion
+
+EVALUATION CRITERIA for pool companies:
+1. Strategic fit with the top-ranked themes from Step 2
+2. Likely acquisition size relative to the acquirer's resources
+3. Whether the company fills a capability gap vs. simply adds revenue
+4. Geographic and channel complementarity with the acquirer
 ` : `Generate 20 targets total.`}
 Requirements:
-- All companies must be REAL and potentially acquirable
-- Keep targets realistically sized for this acquirer
-- Include a mix: some obvious fits and 1-2 creative/contrarian picks
+- All companies must be REAL and potentially acquirable ($25M-$300M EV preferred)
+- Include a mix: some obvious fits and 2-3 creative/contrarian picks
+- Include at least 2 non-US or non-obvious international targets
 
 BULLET FORMAT RULES (critical):
 - "blurb" must be a JSON array of 3-5 strings
+- The FIRST bullet must be a plain-English sentence a non-expert would understand
 - Each bullet must be under 15 words — punchy, scannable
 - Use **bold** markdown on the key phrase in important bullets (not every bullet)
 - Focus on: strategic fit, key products, why it's a good target
 - Do NOT include financial data in bullets (that's added separately)
-- Do NOT write paragraph-style sentences
 
-Example of GOOD bullets:
-["**Premium blender leader** in professional/home markets", "Strong DTC channel with 40%+ margins", "Complements HBB's existing kitchen portfolio", "Brand loyalty comparable to KitchenAid"]
+EXAMPLE OF A COMPLETE GOOD ENTRY:
+{
+  "title": "Vitamix",
+  "tier": "specific_company",
+  "linkedTheme": "Premium Kitchen Appliances",
+  "blurb": ["**Premium blender leader** trusted by chefs and home cooks alike", "Strong DTC channel with high margins and brand loyalty", "Complements existing kitchen portfolio with prestige positioning", "Would add professional/commercial channel access"],
+  "fromPool": false
+}
 
-Example of BAD bullets (too long, no bold):
-["This company is a leading manufacturer of premium blenders that has built a strong direct-to-consumer channel with margins exceeding 40 percent"]
+LINKEDTHEME RULES — CRITICAL:
+Each company MUST include a "linkedTheme" field. You MUST use one of these exact strings (copy-paste, do not paraphrase):
+${validThemesStr}
+If a company doesn't fit any of these themes well, use the closest match.
 
-Each company MUST include a "linkedTheme" field — the market segment or product category from the Step 2 rankings above that this company best aligns with. Use the exact title from the rankings.
-
-Return ONLY valid JSON:
+Write your analysis first, then provide valid JSON:
 {
   "ideas": [
     {
       "title": "Company Name",
       "tier": "specific_company",
-      "linkedTheme": "Market Segment or Product Category from rankings",
-      "blurb": ["**Bold key point** plus context", "Second short bullet", "Third short bullet"],
+      "linkedTheme": "exact theme title from list above",
+      "blurb": ["Plain English first bullet", "**Bold key point** plus context", "Third short bullet"],
       "fromPool": false
     }
   ]

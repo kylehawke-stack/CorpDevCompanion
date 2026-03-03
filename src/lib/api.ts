@@ -230,7 +230,9 @@ export async function generateNarrative(
   rankings: RankedIdea[],
   totalVotes: number,
   sessionName: string,
-): Promise<string> {
+  promptData?: string,
+  competitorPromptData?: string,
+): Promise<{ narrative: string; presentationOutline: string }> {
   const response = await fetch(`${BASE_URL}/generate-narrative`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -246,6 +248,8 @@ export async function generateNarrative(
       })),
       totalVotes,
       sessionName,
+      promptData,
+      competitorPromptData,
     }),
   });
 
@@ -254,7 +258,10 @@ export async function generateNarrative(
   }
 
   const data = await response.json();
-  return data.narrative as string;
+  return {
+    narrative: data.narrative as string,
+    presentationOutline: (data.presentationOutline ?? "") as string,
+  };
 }
 
 export async function fetchPeers(symbol: string, sector?: string, industry?: string): Promise<PeerCompany[]> {
