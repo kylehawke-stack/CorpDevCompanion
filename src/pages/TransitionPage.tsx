@@ -26,15 +26,22 @@ export function TransitionPage() {
     [filteredIdeas, state.votes]
   );
 
-  // Always compute strategic priorities for context
-  const topStrategicPriorities = useMemo(() => {
+  // Always compute strategic priorities for context (top AND bottom)
+  const { topStrategicPriorities, bottomStrategicPriorities } = useMemo(() => {
     const spIdeas = state.ideas.filter((i) => i.tier === 'strategic_priority');
     const spRankings = computeRankings(spIdeas, state.votes);
-    return spRankings.slice(0, 5).map((r) => ({
-      title: r.idea.title,
-      score: r.displayScore,
-      rank: r.rank,
-    }));
+    return {
+      topStrategicPriorities: spRankings.slice(0, 5).map((r) => ({
+        title: r.idea.title,
+        score: r.displayScore,
+        rank: r.rank,
+      })),
+      bottomStrategicPriorities: spRankings.slice(-5).map((r) => ({
+        title: r.idea.title,
+        score: r.displayScore,
+        rank: r.rank,
+      })),
+    };
   }, [state.ideas, state.votes]);
 
   const topResults = rankings.slice(0, 8);
@@ -53,7 +60,7 @@ export function TransitionPage() {
           const segmentIdeas = await generateSeedIdeas(
             state.companyProfile!,
             topStrategicPriorities,
-            state.strategicContext,
+            bottomStrategicPriorities,
             state.competitorProfiles,
             state.promptData,
             state.competitorPromptData
@@ -64,8 +71,8 @@ export function TransitionPage() {
           // Transition 2: generate company ideas from segment/category rankings
           const companyIdeas = await generateCompanyIdeas(
             rankings,
-            state.strategicContext,
             topStrategicPriorities,
+            bottomStrategicPriorities,
             state.competitorProfiles,
             state.promptData,
             state.competitorPromptData

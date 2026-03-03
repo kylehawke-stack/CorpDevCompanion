@@ -36,11 +36,7 @@ interface CompetitorInfo {
 interface RequestBody {
   companyProfile?: CompanyProfile;
   topStrategicPriorities?: TopStrategicPriority[];
-  strategicContext?: {
-    freeText?: string;
-    earningsTranscript?: string;
-    analystNotes?: string;
-  };
+  bottomStrategicPriorities?: TopStrategicPriority[];
   competitorProfiles?: CompetitorInfo[];
   promptData?: string;
   competitorPromptData?: string;
@@ -57,7 +53,7 @@ export default async function handler(req: Request, _context: Context) {
 
   let companyProfile: CompanyProfile | undefined;
   let topStrategicPriorities: TopStrategicPriority[] = [];
-  let strategicContext: RequestBody["strategicContext"];
+  let bottomStrategicPriorities: TopStrategicPriority[] = [];
   let competitorProfiles: CompetitorInfo[] = [];
   let promptData: string | undefined;
   let competitorPromptData: string | undefined;
@@ -66,7 +62,7 @@ export default async function handler(req: Request, _context: Context) {
     const body: RequestBody = await req.json();
     companyProfile = body.companyProfile;
     topStrategicPriorities = body.topStrategicPriorities ?? [];
-    strategicContext = body.strategicContext;
+    bottomStrategicPriorities = body.bottomStrategicPriorities ?? [];
     competitorProfiles = body.competitorProfiles ?? [];
     promptData = body.promptData;
     competitorPromptData = body.competitorPromptData;
@@ -111,40 +107,32 @@ export default async function handler(req: Request, _context: Context) {
     });
   }
 
-  // Build strategic priorities section (from Step 1 voting)
+  // Build strategic priorities section (from Step 1 voting) — top AND bottom
   let prioritiesSection = "";
   if (topStrategicPriorities.length > 0) {
     prioritiesSection = `
-TOP STRATEGIC PRIORITIES (ranked by team voting in Step 1):
+TOP STRATEGIC PRIORITIES (ranked by team voting in Step 1 — these are the team's preferred directions):
 ${topStrategicPriorities.map(p => `${p.rank}. "${p.title}" (Score: ${p.score})`).join("\n")}
 
 Generate M&A ideas that strongly align with these voted-on strategic priorities. The higher-ranked priorities should have more influence on your suggestions.
 `;
-  }
+    if (bottomStrategicPriorities.length > 0) {
+      prioritiesSection += `
+LOWEST-RANKED STRATEGIC PRIORITIES (these are the directions the team voted AGAINST — do NOT emphasize these):
+${bottomStrategicPriorities.map(p => `${p.rank}. "${p.title}" (Score: ${p.score})`).join("\n")}
 
-  // Build strategic context section
-  let contextSection = "";
-  if (strategicContext) {
-    const parts: string[] = [];
-    if (strategicContext.freeText?.trim()) {
-      parts.push(`Strategic Priorities:\n${strategicContext.freeText.trim()}`);
-    }
-    if (strategicContext.earningsTranscript?.trim()) {
-      parts.push(`Recent Earnings Call Highlights:\n${strategicContext.earningsTranscript.trim()}`);
-    }
-    if (strategicContext.analystNotes?.trim()) {
-      parts.push(`Analyst Reports & Industry Notes:\n${strategicContext.analystNotes.trim()}`);
-    }
-    if (parts.length > 0) {
-      contextSection = `\nADDITIONAL CONTEXT:\n${parts.join("\n\n")}\n`;
+The team has explicitly deprioritized these directions. Avoid generating ideas that primarily serve these low-ranked priorities unless there is a compelling contrarian reason.
+`;
     }
   }
 
-  // Build competitor context
+  // Build competitor context — CONTEXT ONLY, not the target company
   let competitorSection = "";
   if (competitorProfiles.length > 0) {
     competitorSection = `
-COMPETITIVE LANDSCAPE — Key competitors and their product portfolios:
+COMPETITIVE LANDSCAPE (CONTEXT ONLY — these are competitors/peers, NOT the target company):
+IMPORTANT: The competitor data below is provided purely as context and inspiration. It describes the competitive environment, NOT the company we are generating M&A ideas for. Do NOT confuse competitor financials, products, or strategies with the target company's own situation.
+
 ${competitorProfiles.map((c, i) => {
       const mcap = c.marketCap >= 1e9 ? `$${(c.marketCap / 1e9).toFixed(1)}B` : `$${(c.marketCap / 1e6).toFixed(0)}M`;
       let line = `${i + 1}. ${c.name} (${c.symbol}) — ${mcap} [${c.isDirect ? "Direct peer" : "Extended peer"}]`;
@@ -152,15 +140,15 @@ ${competitorProfiles.map((c, i) => {
       return line;
     }).join("\n")}
 
-Use this competitive intelligence:
-- Include at least 2 ideas that directly address competitive gaps or opportunities revealed by competitor portfolios
-- Consider competitors' product segments as potential M&A target categories
-- Think about adjacent categories where competitors don't yet compete (white space)
+Use this competitive intelligence to INSPIRE ideas for the target company:
+- Identify competitive gaps or white space where competitors operate but the target company does not
+- Consider adjacent categories where competitors have expanded — could the target company do the same via M&A?
+- Think about what competitors' portfolios reveal about market opportunities
 - Include competitors themselves as potential acquisition targets if they are realistically sized
 `;
   }
 
-  const taskPrompt = `${prioritiesSection}${competitorSection}${contextSection}
+  const taskPrompt = `${prioritiesSection}${competitorSection}
 Generate exactly 12 M&A target ideas to evaluate. These should span two tiers:
 
 1. **Market Segments** (6 ideas) — broad market categories the company could enter/expand in

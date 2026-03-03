@@ -186,13 +186,9 @@ interface RequestBody {
   totalVotes: number;
   existingTitles: string[];
   votingStep?: "step1" | "step2" | "step3";
-  strategicContext?: {
-    freeText?: string;
-    earningsTranscript?: string;
-    analystNotes?: string;
-  };
   companyProfile?: CompanyProfile;
   topStrategicPriorities?: TopStrategicPriority[];
+  bottomStrategicPriorities?: TopStrategicPriority[];
   injectedPerformance?: InjectedPerformance[];
   lastInjectionAtVoteCount?: number;
   userDirections?: string[];
@@ -218,9 +214,9 @@ export default async function handler(req: Request, _context: Context) {
     totalVotes,
     existingTitles,
     votingStep,
-    strategicContext,
     companyProfile,
     topStrategicPriorities,
+    bottomStrategicPriorities,
     injectedPerformance,
     lastInjectionAtVoteCount,
     userDirections,
@@ -277,27 +273,7 @@ export default async function handler(req: Request, _context: Context) {
     }
   }
 
-  // Build strategic context section
-  let contextSection = "";
-  if (strategicContext) {
-    const parts: string[] = [];
-    if (strategicContext.freeText?.trim()) {
-      parts.push(`Strategic Priorities:\n${strategicContext.freeText.trim()}`);
-    }
-    if (strategicContext.earningsTranscript?.trim()) {
-      parts.push(
-        `Recent Earnings Call Highlights:\n${strategicContext.earningsTranscript.trim()}`
-      );
-    }
-    if (strategicContext.analystNotes?.trim()) {
-      parts.push(
-        `Analyst Reports & Industry Notes:\n${strategicContext.analystNotes.trim()}`
-      );
-    }
-    if (parts.length > 0) {
-      contextSection = `\nAdditional strategic context:\n${parts.join("\n\n")}\n`;
-    }
-  }
+
 
   // Build company profile section (fallback when promptData not available)
   let companySection = "";
@@ -310,10 +286,13 @@ export default async function handler(req: Request, _context: Context) {
 - ${companyProfile.description.slice(0, 400)}`;
   }
 
-  // Build strategic priorities section
+  // Build strategic priorities section (top AND bottom from Step 1 voting)
   let prioritiesSection = "";
   if (topStrategicPriorities && topStrategicPriorities.length > 0) {
-    prioritiesSection = `\nTop Strategic Priorities (from Step 1 voting):\n${topStrategicPriorities.map((p) => `${p.rank}. "${p.title}" (Score: ${p.score})`).join("\n")}\nAlign new ideas with these priorities.\n`;
+    prioritiesSection = `\nTOP STRATEGIC PRIORITIES (ranked by team voting — the team's preferred directions):\n${topStrategicPriorities.map((p) => `${p.rank}. "${p.title}" (Score: ${p.score})`).join("\n")}\nAlign new ideas with these priorities. Higher-ranked priorities should have more influence.\n`;
+    if (bottomStrategicPriorities && bottomStrategicPriorities.length > 0) {
+      prioritiesSection += `\nLOWEST-RANKED STRATEGIC PRIORITIES (the team voted AGAINST these — deprioritize):\n${bottomStrategicPriorities.map((p) => `${p.rank}. "${p.title}" (Score: ${p.score})`).join("\n")}\nAvoid generating ideas that primarily serve these low-ranked priorities unless there is a compelling contrarian reason.\n`;
+    }
   }
 
   // Build rankings with blurbs
@@ -359,14 +338,15 @@ ${userDirections.map((d, i) => `${i + 1}. "${d}"`).join("\n")}
 Follow these directions closely. If they say "focus more on X", generate ideas in that direction. If they say "focus less on Y", avoid that area entirely.\n`;
   }
 
-  // Build competitor context for injection
+  // Build competitor context for injection — CONTEXT ONLY, not the target company
   let competitorSection = "";
   if (competitorProfiles && competitorProfiles.length > 0) {
     const relevantCompetitors = competitorProfiles.slice(0, 5);
-    competitorSection = `\nKey competitors: ${relevantCompetitors.map(c => `${c.name} (${c.symbol})`).join(", ")}`;
+    competitorSection = `\nCOMPETITIVE LANDSCAPE (CONTEXT ONLY — these are competitors/peers, NOT the target company):\n`;
+    competitorSection += `Key competitors: ${relevantCompetitors.map(c => `${c.name} (${c.symbol})`).join(", ")}`;
     if (votingStep === "step3") {
       competitorSection += `\nCompetitor product segments: ${relevantCompetitors.flatMap(c => c.productSegments).filter(Boolean).slice(0, 10).join(", ")}`;
-      competitorSection += `\nUse this to find non-obvious targets: companies that supply, partner with, or operate adjacent to these competitors.\n`;
+      competitorSection += `\nUse this to INSPIRE ideas for the target company — find non-obvious targets that supply, partner with, or operate adjacent to these competitors. Do NOT confuse competitor data with the target company's own situation.\n`;
     }
   }
 
@@ -415,7 +395,7 @@ Consider 1-2 of these if they align with voting trends. Mark them with "fromPool
   const prompt = `${companySection}
 
 Based on voting patterns, generate 2-3 NEW acquisition target ideas.
-${contextSection}${prioritiesSection}${competitorSection}${directionsSection}${injectionFeedback}${invenSection}
+${prioritiesSection}${competitorSection}${directionsSection}${injectionFeedback}${invenSection}
 Current top-ranked opportunities:
 ${topRankings}
 

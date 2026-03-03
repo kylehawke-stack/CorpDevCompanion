@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { RankedIdea, StrategicContext } from '../../types/index.ts';
+import type { RankedIdea } from '../../types/index.ts';
 import { generateNarrative } from '../../lib/api.ts';
 import { Button } from '../ui/Button.tsx';
 import { Spinner } from '../ui/Spinner.tsx';
@@ -9,10 +9,9 @@ interface StrategicNarrativeProps {
   rankings: RankedIdea[];
   totalVotes: number;
   sessionName: string;
-  strategicContext?: StrategicContext;
 }
 
-export function StrategicNarrative({ rankings, totalVotes, sessionName, strategicContext }: StrategicNarrativeProps) {
+export function StrategicNarrative({ rankings, totalVotes, sessionName }: StrategicNarrativeProps) {
   const [narrative, setNarrative] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +20,7 @@ export function StrategicNarrative({ rankings, totalVotes, sessionName, strategi
     setLoading(true);
     setError(null);
     try {
-      const result = await generateNarrative(rankings, totalVotes, sessionName, strategicContext);
+      const result = await generateNarrative(rankings, totalVotes, sessionName);
       setNarrative(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate narrative');

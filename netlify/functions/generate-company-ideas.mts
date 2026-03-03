@@ -29,12 +29,8 @@ interface CompetitorInfo {
 
 interface RequestBody {
   rankings: RankingSummary[];
-  strategicContext?: {
-    freeText?: string;
-    earningsTranscript?: string;
-    analystNotes?: string;
-  };
   topStrategicPriorities?: TopStrategicPriority[];
+  bottomStrategicPriorities?: TopStrategicPriority[];
   competitorProfiles?: CompetitorInfo[];
   promptData?: string;
   competitorPromptData?: string;
@@ -273,7 +269,7 @@ export default async function handler(req: Request, _context: Context) {
   const fmpKey = process.env.FMP_API_KEY;
 
   const body: RequestBody = await req.json();
-  const { rankings, strategicContext, topStrategicPriorities, competitorProfiles, promptData, competitorPromptData } = body;
+  const { rankings, topStrategicPriorities, bottomStrategicPriorities, competitorProfiles, promptData, competitorPromptData } = body;
 
   const client = new Anthropic({ apiKey });
 
@@ -322,44 +318,32 @@ export default async function handler(req: Request, _context: Context) {
     )
     .join("\n");
 
-  // Build strategic priorities section
+  // Build strategic priorities section (top AND bottom from Step 1 voting)
   let prioritiesSection = "";
   if (topStrategicPriorities && topStrategicPriorities.length > 0) {
     prioritiesSection = `
-Top Strategic Priorities (from Step 1 team voting):
+TOP STRATEGIC PRIORITIES (ranked by team voting — the team's preferred directions):
 ${topStrategicPriorities.map(p => `${p.rank}. "${p.title}" (Score: ${p.score})`).join("\n")}
 
 Use these strategic priorities as additional context when selecting company targets. Higher-ranked priorities should have more influence.
 `;
-  }
+    if (bottomStrategicPriorities && bottomStrategicPriorities.length > 0) {
+      prioritiesSection += `
+LOWEST-RANKED STRATEGIC PRIORITIES (the team voted AGAINST these — deprioritize):
+${bottomStrategicPriorities.map(p => `${p.rank}. "${p.title}" (Score: ${p.score})`).join("\n")}
 
-  // Build strategic context section
-  let contextSection = "";
-  if (strategicContext) {
-    const parts: string[] = [];
-    if (strategicContext.freeText?.trim()) {
-      parts.push(`Strategic Priorities:\n${strategicContext.freeText.trim()}`);
-    }
-    if (strategicContext.earningsTranscript?.trim()) {
-      parts.push(
-        `Recent Earnings Call Highlights:\n${strategicContext.earningsTranscript.trim()}`
-      );
-    }
-    if (strategicContext.analystNotes?.trim()) {
-      parts.push(
-        `Analyst Reports & Industry Notes:\n${strategicContext.analystNotes.trim()}`
-      );
-    }
-    if (parts.length > 0) {
-      contextSection = `\nAdditional strategic context from the team:\n${parts.join("\n\n")}\n\nUse this context to identify companies that align with stated priorities.\n`;
+Avoid selecting company targets that primarily serve these low-ranked priorities.
+`;
     }
   }
 
-  // Build competitor context for company idea generation
+  // Build competitor context — CONTEXT ONLY, not the target company
   let competitorSection = "";
   if (competitorProfiles && competitorProfiles.length > 0) {
     competitorSection = `
-KNOWN COMPETITORS & THEIR ECOSYSTEMS:
+COMPETITIVE LANDSCAPE (CONTEXT ONLY — these are competitors/peers, NOT the target company):
+IMPORTANT: The competitor data below is provided purely as context and inspiration. It describes the competitive environment, NOT the company we are generating acquisition targets for. Do NOT confuse competitor financials, products, or strategies with the target company's own situation.
+
 ${competitorProfiles.map((c, i) => {
       const mcap = c.marketCap >= 1e9 ? `$${(c.marketCap / 1e9).toFixed(1)}B` : `$${(c.marketCap / 1e6).toFixed(0)}M`;
       let line = `${i + 1}. ${c.name} (${c.symbol}) — ${mcap} [${c.isDirect ? "Direct" : "Extended"} peer]`;
@@ -367,7 +351,7 @@ ${competitorProfiles.map((c, i) => {
       return line;
     }).join("\n")}
 
-IMPORTANT: Use these competitors as a STARTING POINT, not the entire universe:
+Use these competitors to INSPIRE acquisition target ideas for the target company:
 - Include 1-2 of these competitors themselves if they are acquirable (smaller market cap than the acquirer or reasonable bolt-on size)
 - Include companies that SUPPLY or PARTNER with these competitors
 - Include companies that compete with these competitors in niche segments
@@ -395,7 +379,7 @@ Based on Step 2 voting results, the team has identified these strategic prioriti
 
 Top-ranked market segments and product categories:
 ${topRankings}
-${contextSection}
+
 Generate SPECIFIC COMPANY acquisition targets that align with these top-ranked themes.
 ${filteredPool.length > 0 ? `
 INSTRUCTIONS FOR CANDIDATE POOL:

@@ -34,11 +34,14 @@ export function useIdeaInjection() {
         ? 'step2' as const
         : 'step3' as const;
 
-      // Compute top strategic priorities from strategic_priority ideas
-      const strategicPriorityRankings = rankings
-        .filter((r) => r.idea.tier === 'strategic_priority')
-        .slice(0, 5);
-      const topStrategicPriorities = strategicPriorityRankings.map((r) => ({
+      // Compute top and bottom strategic priorities from strategic_priority ideas
+      const spRankings = rankings.filter((r) => r.idea.tier === 'strategic_priority');
+      const topStrategicPriorities = spRankings.slice(0, 5).map((r) => ({
+        title: r.idea.title,
+        score: r.displayScore,
+        rank: r.rank,
+      }));
+      const bottomStrategicPriorities = spRankings.slice(-5).map((r) => ({
         title: r.idea.title,
         score: r.displayScore,
         rank: r.rank,
@@ -49,9 +52,9 @@ export function useIdeaInjection() {
         state.totalVoteCount,
         state.ideas,
         votingStep,
-        state.strategicContext,
         state.companyProfile,
         topStrategicPriorities,
+        bottomStrategicPriorities,
         state.lastInjectionAtVoteCount,
         state.userDirections,
         state.competitorProfiles,
@@ -74,7 +77,7 @@ export function useIdeaInjection() {
           injectionInFlight.current = false;
         });
     }
-  }, [state.totalVoteCount, state.lastInjectionAtVoteCount, state.ideas, state.votes, state.phase, state.strategicContext, state.companyProfile, state.userDirections, dispatch]);
+  }, [state.totalVoteCount, state.lastInjectionAtVoteCount, state.ideas, state.votes, state.phase, state.companyProfile, state.userDirections, dispatch]);
 
   return { isInjecting, newIdeaCount };
 }

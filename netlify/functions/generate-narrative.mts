@@ -15,11 +15,6 @@ interface RequestBody {
   rankings: RankingSummary[];
   totalVotes: number;
   sessionName: string;
-  strategicContext?: {
-    freeText?: string;
-    earningsTranscript?: string;
-    analystNotes?: string;
-  };
 }
 
 export default async function handler(req: Request, _context: Context) {
@@ -32,7 +27,7 @@ export default async function handler(req: Request, _context: Context) {
   }
 
   const body: RequestBody = await req.json();
-  const { rankings, totalVotes, sessionName, strategicContext } = body;
+  const { rankings, totalVotes, sessionName } = body;
 
   const client = new Anthropic({ apiKey });
 
@@ -43,34 +38,12 @@ export default async function handler(req: Request, _context: Context) {
     })
     .join("\n");
 
-  // Build strategic context section
-  let contextSection = "";
-  if (strategicContext) {
-    const parts: string[] = [];
-    if (strategicContext.freeText?.trim()) {
-      parts.push(`Strategic Priorities:\n${strategicContext.freeText.trim()}`);
-    }
-    if (strategicContext.earningsTranscript?.trim()) {
-      parts.push(
-        `Recent Earnings Call Highlights:\n${strategicContext.earningsTranscript.trim()}`
-      );
-    }
-    if (strategicContext.analystNotes?.trim()) {
-      parts.push(
-        `Analyst Reports & Industry Notes:\n${strategicContext.analystNotes.trim()}`
-      );
-    }
-    if (parts.length > 0) {
-      contextSection = `\nStrategic context provided by the team:\n${parts.join("\n\n")}\n\nReference this context when analyzing themes and recommending research areas.\n`;
-    }
-  }
-
   const prompt = `You are a senior M&A advisor preparing a strategic briefing for Hamilton Beach Brands' executive team based on their pairwise voting results.
 
 Session: "${sessionName}"
 Total pairwise votes: ${totalVotes}
 Ranking method: Bradley-Terry MLE (Elo-equivalent scores, median = 1500)
-${contextSection}
+
 Force-ranked M&A opportunities (as voted by the executive team):
 ${rankingsList}
 

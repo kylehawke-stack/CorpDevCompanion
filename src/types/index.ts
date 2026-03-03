@@ -41,12 +41,6 @@ export interface RankedIdea {
   confidenceInterval: ConfidenceInterval;
 }
 
-export interface StrategicContext {
-  freeText: string;
-  earningsTranscript: string;
-  analystNotes: string;
-}
-
 export interface CompanyProfile {
   symbol: string;
   companyName: string;
@@ -277,7 +271,7 @@ export interface GameState {
   totalVoteCount: number;
   lastInjectionAtVoteCount: number;
   phase: 'welcome' | 'how_it_works' | 'analyzing' | 'peer_selection' | 'peer_benchmarking' | 'briefing' | 'voting_step1' | 'transition1' | 'voting_step2' | 'transition2' | 'voting_step3' | 'results';
-  strategicContext?: StrategicContext;
+
   step1VoteCount: number;
   step2VoteCount: number;
   step3VoteCount: number;
