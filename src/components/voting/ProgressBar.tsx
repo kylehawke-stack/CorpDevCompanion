@@ -27,7 +27,7 @@ export function ProgressBar({ phase, step1VoteCount, step2VoteCount, step3VoteCo
     <div className="w-full space-y-2">
       {/* 3-segment bar */}
       <div className="flex gap-1">
-        {/* Step 1: Strategic Priorities */}
+        {/* Step 3: Strategic Priorities */}
         <div className="flex-1">
           <div className={`w-full h-2 rounded-full overflow-hidden ${isStep1 ? 'bg-indigo-500/30' : 'bg-edge'}`}>
             <div
@@ -37,7 +37,7 @@ export function ProgressBar({ phase, step1VoteCount, step2VoteCount, step3VoteCo
           </div>
         </div>
 
-        {/* Step 2: Segments & Categories */}
+        {/* Step 4: Market Segments */}
         <div className="flex-1">
           <div className={`w-full h-2 rounded-full overflow-hidden ${isStep2 ? 'bg-emerald-500/30' : 'bg-edge'}`}>
             <div
@@ -47,7 +47,7 @@ export function ProgressBar({ phase, step1VoteCount, step2VoteCount, step3VoteCo
           </div>
         </div>
 
-        {/* Step 3: Company Targets */}
+        {/* Step 5: Target Companies */}
         <div className="flex-1">
           <div className={`w-full h-2 rounded-full overflow-hidden ${isStep3 ? 'bg-amber-500/30' : 'bg-edge'}`}>
             <div
@@ -62,19 +62,19 @@ export function ProgressBar({ phase, step1VoteCount, step2VoteCount, step3VoteCo
       <div className="flex items-center justify-between text-xs text-muted">
         {isStep1 && (
           <>
-            <span className="font-medium text-indigo-400">Step 1: Strategic Priorities</span>
+            <span className="font-medium text-indigo-400">Step 3: Strategic Priorities</span>
             <span>{step1VoteCount} / {STEP1_TARGET} votes on {stepIdeaCount} options</span>
           </>
         )}
         {isStep2 && (
           <>
-            <span className="font-medium text-emerald-400">Step 2: Segments & Categories</span>
+            <span className="font-medium text-emerald-400">Step 4: Market Segments</span>
             <span>{step2VoteCount} / {STEP2_TARGET} votes on {stepIdeaCount} themes</span>
           </>
         )}
         {isStep3 && (
           <>
-            <span className="font-medium text-sky-400">Step 3: Company Targets</span>
+            <span className="font-medium text-sky-400">Step 5: Target Companies</span>
             <span>{step3Votes} votes on {stepIdeaCount} companies</span>
           </>
         )}

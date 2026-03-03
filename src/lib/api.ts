@@ -1,4 +1,4 @@
-import type { Idea, RankedIdea, StrategicContext, CompanyProfile, FinancialHighlight, RevenueSegment, CompetitorProfile, PeerCompany, PeerFinancials } from '../types/index.ts';
+import type { Idea, RankedIdea, CompanyProfile, FinancialHighlight, RevenueSegment, CompetitorProfile, PeerCompany, PeerFinancials } from '../types/index.ts';
 
 const BASE_URL = '/.netlify/functions';
 
@@ -99,7 +99,7 @@ export async function generateBriefing(promptData: string, competitorPromptData?
 export async function generateSeedIdeas(
   companyProfile: CompanyProfile,
   topStrategicPriorities: { title: string; score: number; rank: number }[],
-  strategicContext?: StrategicContext,
+  bottomStrategicPriorities?: { title: string; score: number; rank: number }[],
   competitorProfiles?: CompetitorProfile[],
   promptData?: string,
   competitorPromptData?: string
@@ -107,7 +107,7 @@ export async function generateSeedIdeas(
   const response = await fetch(`${BASE_URL}/generate-ideas`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ companyProfile, topStrategicPriorities, strategicContext, competitorProfiles, promptData, competitorPromptData }),
+    body: JSON.stringify({ companyProfile, topStrategicPriorities, bottomStrategicPriorities, competitorProfiles, promptData, competitorPromptData }),
   });
 
   if (!response.ok) {
@@ -128,9 +128,9 @@ export async function injectIdeas(
   totalVotes: number,
   existingIdeas: Idea[],
   votingStep?: 'step1' | 'step2' | 'step3',
-  strategicContext?: StrategicContext,
   companyProfile?: CompanyProfile,
   topStrategicPriorities?: { title: string; score: number; rank: number }[],
+  bottomStrategicPriorities?: { title: string; score: number; rank: number }[],
   lastInjectionAtVoteCount?: number,
   userDirections?: string[],
   competitorProfiles?: CompetitorProfile[],
@@ -166,9 +166,9 @@ export async function injectIdeas(
       totalVotes,
       existingTitles: existingIdeas.map((i) => i.title),
       votingStep,
-      strategicContext,
       companyProfile,
       topStrategicPriorities,
+      bottomStrategicPriorities,
       injectedPerformance,
       lastInjectionAtVoteCount,
       userDirections,
@@ -188,8 +188,8 @@ export async function injectIdeas(
 
 export async function generateCompanyIdeas(
   rankings: RankedIdea[],
-  strategicContext?: StrategicContext,
   topStrategicPriorities?: { title: string; score: number; rank: number }[],
+  bottomStrategicPriorities?: { title: string; score: number; rank: number }[],
   competitorProfiles?: CompetitorProfile[],
   promptData?: string,
   competitorPromptData?: string,
@@ -206,8 +206,8 @@ export async function generateCompanyIdeas(
         wins: r.wins,
         losses: r.losses,
       })),
-      strategicContext,
       topStrategicPriorities,
+      bottomStrategicPriorities,
       competitorProfiles,
       promptData,
       competitorPromptData,
@@ -281,8 +281,9 @@ export async function generateNarrative(
   rankings: RankedIdea[],
   totalVotes: number,
   sessionName: string,
-  strategicContext?: StrategicContext
-): Promise<string> {
+  promptData?: string,
+  competitorPromptData?: string,
+): Promise<{ narrative: string; presentationOutline: string }> {
   const response = await fetch(`${BASE_URL}/generate-narrative`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -298,7 +299,8 @@ export async function generateNarrative(
       })),
       totalVotes,
       sessionName,
-      strategicContext,
+      promptData,
+      competitorPromptData,
     }),
   });
 
@@ -307,7 +309,10 @@ export async function generateNarrative(
   }
 
   const data = await response.json();
-  return data.narrative as string;
+  return {
+    narrative: data.narrative as string,
+    presentationOutline: (data.presentationOutline ?? "") as string,
+  };
 }
 
 export async function fetchPeers(symbol: string, sector?: string, industry?: string): Promise<PeerCompany[]> {

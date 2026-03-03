@@ -14,6 +14,11 @@ import { PeerBenchmarkMockup } from './pages/PeerBenchmarkMockup.tsx';
 import { SessionBar } from './components/session/SessionBar.tsx';
 import { JoinSessionPage } from './components/session/JoinSessionPage.tsx';
 import { useSession } from './hooks/useSession.ts';
+import { VotingIntroMockup } from './pages/VotingIntroMockup.tsx';
+import { HowItWorksMockup } from './pages/HowItWorksMockup.tsx';
+import { TrackerDemoMockup } from './pages/TrackerDemoMockup.tsx';
+import { DesignOptionsComparison } from './pages/DesignOptionsComparison.tsx';
+import { HowItWorksPage } from './pages/HowItWorksPage.tsx';
 
 function AppRouter() {
   const { state } = useGameState();
@@ -31,6 +36,11 @@ function AppRouter() {
   if (hash === '#results-mockup') return <ResultsMockup />;
   if (hash === '#spectrum-compare') return <SpectrumComparison />;
   if (hash === '#peer-mockup') return <PeerBenchmarkMockup />;
+  if (hash === '#voting-intro') return <VotingIntroMockup />;
+  if (hash === '#how-it-works') return <HowItWorksMockup />;
+  if (hash === '#tracker-demo') return <TrackerDemoMockup />;
+  if (hash === '#design-options') return <DesignOptionsComparison />;
+  if (hash === '#journey') return <HowItWorksPage />;
 
   // Show join page when user visits ?s=CODE and hasn't joined yet
   if (joinCode && !state.isCollaborative) {
@@ -41,8 +51,9 @@ function AppRouter() {
     switch (state.phase) {
       case 'welcome':
         return <WelcomePage />;
+      case 'how_it_works':
       case 'analyzing':
-        return <WelcomePage />;
+        return <HowItWorksPage />;
       case 'peer_selection':
         return <PeerSelectionPage />;
       case 'peer_benchmarking':

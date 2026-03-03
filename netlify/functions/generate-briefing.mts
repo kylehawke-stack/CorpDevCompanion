@@ -157,7 +157,8 @@ Examples of BAD titles (too jargony or product-specific): "Transformational Bets
 
 BLURB RULES (for ideas):
 - "blurb" must be a JSON array of 2-3 strings
-- Blurbs connect the strategic option to THIS company's specific situation — use the financial data here
+- The FIRST bullet must be a plain-English sentence that a non-MBA person would understand — no jargon, no acronyms, no buzzwords
+- Remaining bullets connect the strategic option to THIS company's specific situation — reference the financial data
 - Under 15 words per bullet — punchy, scannable
 - Use **bold** on one key phrase per idea
 

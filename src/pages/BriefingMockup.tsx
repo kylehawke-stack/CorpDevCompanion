@@ -3,7 +3,7 @@
  * Static mockup of the redesigned Intelligence Briefing page.
  * Uses hardcoded HBB data matching the REAL backend data shape from
  * analyze-company.mts (6 FinancialHighlight cards) and generate-briefing.mts
- * (3 AI insight cards). This is a preview-only page at /#mockup.
+ * (3 generated insight cards). This is a preview-only page at /#mockup.
  *
  * Data contract reference: src/types/index.ts (BriefingKPI, BRIEFING_CARD_GROUPS)
  */
@@ -62,7 +62,7 @@ const COMPUTED_HIGHLIGHTS: FinancialHighlight[] = [
   },
 ];
 
-// These 3 cards come from generate-briefing.mts (AI-generated, same FinancialHighlight shape)
+// These 3 cards come from generate-briefing.mts (system-generated, same FinancialHighlight shape)
 const AI_HIGHLIGHTS: FinancialHighlight[] = [
   {
     label: 'Earnings Call Insights',
@@ -104,7 +104,7 @@ function formatRevenue(val: number): string {
 
 /**
  * Extract a quote + attribution from an observation string.
- * Matches the pattern the AI uses: As CEO Scott Tidey noted: \u201cquote\u201d
+ * Matches the pattern the system uses: As CEO Scott Tidey noted: \u201cquote\u201d
  * Returns null if no quote found.
  */
 function extractQuote(observation: string): { text: string; speaker: string; surrounding: string } | null {

@@ -16,10 +16,10 @@ export function VotePage() {
   };
 
   const stepLabel = state.phase === 'voting_step1'
-    ? 'Step 1: Strategic Priorities'
+    ? 'Step 3: Strategic Priorities'
     : state.phase === 'voting_step2'
-      ? 'Step 2: Segments & Categories'
-      : 'Step 3: Company Targets';
+      ? 'Step 4: Market Segments'
+      : 'Step 5: Target Companies';
 
   return (
     <div className="min-h-screen bg-surface-base">

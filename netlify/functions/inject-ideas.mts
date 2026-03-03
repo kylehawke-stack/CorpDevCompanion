@@ -186,13 +186,9 @@ interface RequestBody {
   totalVotes: number;
   existingTitles: string[];
   votingStep?: "step1" | "step2" | "step3";
-  strategicContext?: {
-    freeText?: string;
-    earningsTranscript?: string;
-    analystNotes?: string;
-  };
   companyProfile?: CompanyProfile;
   topStrategicPriorities?: TopStrategicPriority[];
+  bottomStrategicPriorities?: TopStrategicPriority[];
   injectedPerformance?: InjectedPerformance[];
   lastInjectionAtVoteCount?: number;
   userDirections?: string[];
@@ -218,9 +214,9 @@ export default async function handler(req: Request, _context: Context) {
     totalVotes,
     existingTitles,
     votingStep,
-    strategicContext,
     companyProfile,
     topStrategicPriorities,
+    bottomStrategicPriorities,
     injectedPerformance,
     lastInjectionAtVoteCount,
     userDirections,
@@ -277,27 +273,7 @@ export default async function handler(req: Request, _context: Context) {
     }
   }
 
-  // Build strategic context section
-  let contextSection = "";
-  if (strategicContext) {
-    const parts: string[] = [];
-    if (strategicContext.freeText?.trim()) {
-      parts.push(`Strategic Priorities:\n${strategicContext.freeText.trim()}`);
-    }
-    if (strategicContext.earningsTranscript?.trim()) {
-      parts.push(
-        `Recent Earnings Call Highlights:\n${strategicContext.earningsTranscript.trim()}`
-      );
-    }
-    if (strategicContext.analystNotes?.trim()) {
-      parts.push(
-        `Analyst Reports & Industry Notes:\n${strategicContext.analystNotes.trim()}`
-      );
-    }
-    if (parts.length > 0) {
-      contextSection = `\nAdditional strategic context:\n${parts.join("\n\n")}\n`;
-    }
-  }
+
 
   // Build company profile section (fallback when promptData not available)
   let companySection = "";
@@ -310,10 +286,13 @@ export default async function handler(req: Request, _context: Context) {
 - ${companyProfile.description.slice(0, 400)}`;
   }
 
-  // Build strategic priorities section
+  // Build strategic priorities section (top AND bottom from Step 1 voting)
   let prioritiesSection = "";
   if (topStrategicPriorities && topStrategicPriorities.length > 0) {
-    prioritiesSection = `\nTop Strategic Priorities (from Step 1 voting):\n${topStrategicPriorities.map((p) => `${p.rank}. "${p.title}" (Score: ${p.score})`).join("\n")}\nAlign new ideas with these priorities.\n`;
+    prioritiesSection = `\nTOP STRATEGIC PRIORITIES (ranked by team voting — the team's preferred directions):\n${topStrategicPriorities.map((p) => `${p.rank}. "${p.title}" (Score: ${p.score})`).join("\n")}\nAlign new ideas with these priorities. Higher-ranked priorities should have more influence.\n`;
+    if (bottomStrategicPriorities && bottomStrategicPriorities.length > 0) {
+      prioritiesSection += `\nLOWEST-RANKED STRATEGIC PRIORITIES (the team voted AGAINST these — deprioritize):\n${bottomStrategicPriorities.map((p) => `${p.rank}. "${p.title}" (Score: ${p.score})`).join("\n")}\nAvoid generating ideas that primarily serve these low-ranked priorities unless there is a compelling contrarian reason.\n`;
+    }
   }
 
   // Build rankings with blurbs
@@ -339,7 +318,7 @@ export default async function handler(req: Request, _context: Context) {
     const votesSinceLastInjection = lastInjectionAtVoteCount
       ? totalVotes - lastInjectionAtVoteCount
       : totalVotes;
-    injectionFeedback = `\nPrevious AI-injected idea performance (${votesSinceLastInjection} votes since last injection):
+    injectionFeedback = `\nPreviously injected idea performance (${votesSinceLastInjection} votes since last injection):
 ${injectedPerformance
   .map(
     (p) =>
@@ -359,54 +338,34 @@ ${userDirections.map((d, i) => `${i + 1}. "${d}"`).join("\n")}
 Follow these directions closely. If they say "focus more on X", generate ideas in that direction. If they say "focus less on Y", avoid that area entirely.\n`;
   }
 
-  // Build competitor context for injection
+  // Build competitor context for injection — CONTEXT ONLY, not the target company
   let competitorSection = "";
   if (competitorProfiles && competitorProfiles.length > 0) {
     const relevantCompetitors = competitorProfiles.slice(0, 5);
-    competitorSection = `\nKey competitors: ${relevantCompetitors.map(c => `${c.name} (${c.symbol})`).join(", ")}`;
+    competitorSection = `\nCOMPETITIVE LANDSCAPE (CONTEXT ONLY — these are competitors/peers, NOT the target company):\n`;
+    competitorSection += `Key competitors: ${relevantCompetitors.map(c => `${c.name} (${c.symbol})`).join(", ")}`;
     if (votingStep === "step3") {
       competitorSection += `\nCompetitor product segments: ${relevantCompetitors.flatMap(c => c.productSegments).filter(Boolean).slice(0, 10).join(", ")}`;
-      competitorSection += `\nUse this to find non-obvious targets: companies that supply, partner with, or operate adjacent to these competitors.\n`;
+      competitorSection += `\nUse this to INSPIRE ideas for the target company — find non-obvious targets that supply, partner with, or operate adjacent to these competitors. Do NOT confuse competitor data with the target company's own situation.\n`;
     }
   }
 
-  // For Step 3, load Inven pool and filter to unused companies
+  // For Step 3, load full Inven pool and exclude already-used companies
   let invenSection = "";
   const invenPool = votingStep === "step3" ? loadInvenPool() : [];
-  const invenRemaining: InvenCompany[] = [];
   if (invenPool.length > 0) {
     const existingLower = new Set(existingTitles.map((t) => t.toLowerCase()));
-    for (const c of invenPool) {
-      const nameLower = c.name.toLowerCase();
-      // Skip if already used (exact or fuzzy match)
-      if (existingLower.has(nameLower)) continue;
-      if (existingTitles.some((t) => isSimilar(c.name, t))) continue;
-      invenRemaining.push(c);
-    }
-    // Take a keyword-relevant sample of 10-15
-    const stopWords = new Set(["and", "the", "for", "with", "from", "into", "that", "this", "are", "was", "has"]);
-    const keywords = new Set<string>();
-    for (const r of rankings.slice(0, 10)) {
-      r.title.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/)
-        .filter((w) => w.length > 2 && !stopWords.has(w))
-        .forEach((w) => keywords.add(w));
-    }
-    // Score and sort
-    const scored = invenRemaining.map((c) => {
-      const text = `${c.name} ${c.desc}`.toLowerCase();
-      let score = 0;
-      for (const kw of keywords) {
-        if (text.includes(kw)) score++;
-      }
-      return { company: c, score };
+    const invenRemaining = invenPool.filter((c) => {
+      if (existingLower.has(c.name.toLowerCase())) return false;
+      if (existingTitles.some((t) => isSimilar(c.name, t))) return false;
+      return true;
     });
-    scored.sort((a, b) => b.score - a.score);
-    const poolSample = scored.slice(0, 15).map((s) => s.company);
+    console.log(`[inject-ideas] Inven pool: ${invenPool.length} total, ${invenRemaining.length} not yet used`);
 
-    if (poolSample.length > 0) {
+    if (invenRemaining.length > 0) {
       invenSection = `
-ADDITIONAL INVEN.AI CANDIDATES (not yet included in voting):
-${poolSample.map((c) => `- ${c.name}: ${c.desc.slice(0, 150)}`).join("\n")}
+INVEN.AI CANDIDATE POOL — Pre-screened acquisition targets not yet in voting (${invenRemaining.length} companies):
+${invenRemaining.map((c, i) => `${i + 1}. ${c.name} (${c.url})\n   ${c.desc}`).join("\n")}
 Consider 1-2 of these if they align with voting trends. Mark them with "fromPool": true.
 `;
     }
@@ -415,7 +374,7 @@ Consider 1-2 of these if they align with voting trends. Mark them with "fromPool
   const prompt = `${companySection}
 
 Based on voting patterns, generate 2-3 NEW acquisition target ideas.
-${contextSection}${prioritiesSection}${competitorSection}${directionsSection}${injectionFeedback}${invenSection}
+${prioritiesSection}${competitorSection}${directionsSection}${injectionFeedback}${invenSection}
 Current top-ranked opportunities:
 ${topRankings}
 
@@ -426,15 +385,23 @@ Total votes cast: ${totalVotes}
 
 Existing ideas (do NOT duplicate these, not even paraphrases or near-duplicates): ${existingTitles.join(", ")}
 
-DEDUP RULE: Do NOT generate ideas that are semantically the same as existing ones with slightly different wording (e.g., "Commercial Food Service Equipment" vs "Commercial Foodservice Equipment"). Each new idea must represent a genuinely distinct concept.
+DEDUP RULE — READ CAREFULLY:
+Before generating ANY idea, mentally check it against EVERY existing idea above. Do NOT generate ideas that are:
+- The same concept with different wording (e.g., "Commercial Food Service Equipment" vs "Commercial Foodservice Equipment")
+- A subset of an existing idea (e.g., "Coffee Machines" when "Beverage Equipment" already exists)
+- A superset that subsumes an existing idea
+- The same company/segment described from a different angle
+Each new idea must represent a genuinely DISTINCT concept that is not already covered.
 
 ${tierGuidance}
 
-Instructions:
+STEP 1 — Brief analysis (2-3 sentences):
+What patterns do the top-ranked and bottom-ranked ideas reveal? What gap or opportunity is NOT yet represented?
+
+STEP 2 — Generate ideas:
 - Generate ideas that EXPLORE the themes revealed by top-ranked items
 - Align with the company profile and strategic priorities
 - Include ONE contrarian/surprising idea that challenges the revealed preferences
-- Do NOT explain your reasoning — just provide the ideas
 - Ideas should be specific and actionable
 BULLET FORMAT RULES (critical):
 - "blurb" must be a JSON array of 3-5 strings

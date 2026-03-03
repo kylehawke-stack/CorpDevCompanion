@@ -27,16 +27,19 @@ const initialState: GameState = {
 
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
-    case 'START_ANALYSIS':
+    case 'START_ANALYSIS': {
+      // If user is on the how_it_works page, keep them there while fetches run
+      const nextPhase = state.phase === 'how_it_works' ? 'how_it_works' : 'analyzing';
       return {
         ...state,
         companyProfile: action.companyProfile,
         sessionName: `${action.companyProfile.companyName} — ${new Date().toLocaleDateString()}`,
-        phase: 'analyzing',
+        phase: nextPhase,
       };
+    }
     case 'SET_STRATEGIC_IDEAS': {
-      // Don't change phase if user is in peer selection/benchmarking flow
-      const keepPhase = state.phase === 'peer_selection' || state.phase === 'peer_benchmarking';
+      // Don't change phase if user is in how_it_works, peer selection, or benchmarking flow
+      const keepPhase = state.phase === 'how_it_works' || state.phase === 'peer_selection' || state.phase === 'peer_benchmarking';
       return {
         ...state,
         voterId: crypto.randomUUID(),
@@ -123,13 +126,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         userDirections: [...state.userDirections, action.direction],
       };
-    case 'SET_AVAILABLE_PEERS':
+    case 'SET_AVAILABLE_PEERS': {
+      // If user is on the how_it_works page, keep them there
+      const peersPhase = state.phase === 'how_it_works' ? 'how_it_works' : 'peer_selection';
       return {
         ...state,
         availablePeers: action.peers,
         promptData: action.promptData,
-        phase: 'peer_selection',
+        phase: peersPhase,
       };
+    }
     case 'SELECT_PEERS':
       return {
         ...state,
