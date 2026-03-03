@@ -14,6 +14,7 @@ import { PeerBenchmarkMockup } from './pages/PeerBenchmarkMockup.tsx';
 import { VotingIntroMockup } from './pages/VotingIntroMockup.tsx';
 import { HowItWorksMockup } from './pages/HowItWorksMockup.tsx';
 import { TrackerDemoMockup } from './pages/TrackerDemoMockup.tsx';
+import { DesignOptionsComparison } from './pages/DesignOptionsComparison.tsx';
 
 function AppRouter() {
   const { state } = useGameState();
@@ -33,6 +34,7 @@ function AppRouter() {
   if (hash === '#voting-intro') return <VotingIntroMockup />;
   if (hash === '#how-it-works') return <HowItWorksMockup />;
   if (hash === '#tracker-demo') return <TrackerDemoMockup />;
+  if (hash === '#design-options') return <DesignOptionsComparison />;
 
   switch (state.phase) {
     case 'welcome':

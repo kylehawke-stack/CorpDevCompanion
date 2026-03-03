@@ -181,6 +181,12 @@ export function WelcomePage() {
                 >
                   Tracker Demo
                 </a>
+                <a
+                  href="#design-options"
+                  className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
+                >
+                  Design Options A/B
+                </a>
               </div>
             </>
           ) : (
