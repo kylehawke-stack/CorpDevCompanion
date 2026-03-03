@@ -83,43 +83,54 @@ QUOTE RULES (critical):
 
 Generate 3-5 options per dimension across these 6 DIMENSIONS. Within each dimension, ORDER options from most conservative (dimensionIndex=0) to most aggressive (highest dimensionIndex). The team will vote on which approaches they prefer.
 
+CRITICAL: Options must be SPECIFIC TO THIS COMPANY'S SITUATION, not generic MBA frameworks. Use the financial data, earnings call themes, and competitive landscape above to craft options that a board member of THIS company would recognize as relevant to THEIR strategic debate. A voter should be able to clearly distinguish between options and have a genuine preference.
+
 DIMENSION 1 — GROWTH OBJECTIVE (3-5 options, conservative→aggressive)
 What is the main strategic goal of acquisitions? Order from safe/incremental to bold/transformational.
-Examples: "Market Share Consolidation" (conservative) → "Category Extension" → "Revenue Diversification" → "Geographic Expansion" → "Technology Leap" (aggressive)
+BAD (too generic): "Market Share Consolidation" → "Category Extension" → "Revenue Diversification"
+GOOD (company-specific): "Defend Core Kitchen" → "Build Commercial Channel" → "Expand into Health & Wellness" → "DTC Brand Portfolio"
+Derive your options from the company's actual revenue segments, earnings call priorities, and competitive gaps.
 
 DIMENSION 2 — TARGET PROFILE (3-5 options, conservative→aggressive)
 What kind of company should we acquire? Order from safe/proven to risky/innovative.
-Examples: "Established Brands" (conservative) → "Complementary Players" → "Manufacturing Capability" → "Innovation Leaders" → "Emerging Disruptors" (aggressive)
+BAD (too generic): "Established Brands" → "Complementary Players" → "Emerging Disruptors"
+GOOD (company-specific): "Proven Kitchen Brands" → "Commercial-Grade Manufacturers" → "DTC-Native Brands" → "Smart Home Startups"
+Base these on what this company's actual capability gaps and strategic ambitions suggest.
 
 DIMENSION 3 — RISK POSTURE (3-5 options, conservative→aggressive)
 How aggressive should the M&A strategy be? Order from cautious to bold.
-Examples: "Tuck-In Deals" (conservative) → "Bolt-On Adjacencies" → "Platform Acquisitions" → "Transformational Bets" (aggressive)
+BAD (too generic): "Tuck-In Deals" → "Bolt-On Adjacencies" → "Transformational Bets"
+GOOD (company-specific): "Sub-$50M Tuck-Ins" → "Mid-Market Bolt-Ons ($50-150M)" → "Category-Defining Platform Deal"
+Calibrate the risk levels to the company's actual firepower, leverage capacity, and deal history.
 
 DIMENSION 4 — INTEGRATION (3-5 options, conservative→aggressive)
 How will acquired companies fit into the portfolio? Order from tightest integration to most independent.
-Examples: "Full Integration" (conservative) → "Shared Services" → "Brand Rollup" → "Standalone Brands" (aggressive)
+BAD (too generic): "Full Integration" → "Shared Services" → "Standalone Brands"
+GOOD (company-specific): "Fold Into Existing Lines" → "Shared Ops, Separate Brands" → "Independent Brand House"
+Tailor to the company's actual operating model and brand architecture.
 
 DIMENSION 5 — CAPABILITY PRIORITY (3-5 options, conservative→aggressive)
 What capability matters most in a target? Order from operational/tangible to strategic/intangible.
-Examples: "Manufacturing Scale" (conservative) → "Supply Chain Access" → "Distribution Network" → "Brand Equity" → "IP & Patents" (aggressive)
+BAD (too generic): "Manufacturing Scale" → "Distribution Network" → "IP & Patents"
+GOOD (company-specific): "Production Capacity" → "Retail Channel Access" → "Product Design & Innovation" → "Digital/DTC Capabilities"
+Derive from the company's actual weaknesses and what its competitors have that it lacks.
 
 DIMENSION 6 — STRATEGIC PROXIMITY (3-5 options, conservative→aggressive)
 How far from the core business should acquisitions venture? Order from closest to furthest.
-Examples: "Core Strengthening" (conservative) → "Adjacent Categories" → "New-to-Company Expansion" → "White Space Diversification" (aggressive)
+BAD (too generic): "Core Strengthening" → "Adjacent Categories" → "White Space Diversification"
+GOOD (company-specific): "Double Down on Kitchen" → "Expand Within Home" → "Enter Commercial/Hospitality" → "New Category Entirely"
+Use the company's actual product portfolio and competitive landscape to define what "core" vs "adjacent" vs "far afield" means for THIS company.
 
-CRITICAL RULES:
-- These are PURE STRATEGIC FRAMEWORK choices — they define the HOW and WHY of M&A, not the WHERE or WHAT
-- Do NOT reference specific product categories, market segments, end-markets, or industries in titles
-- Do NOT generate ideas that name what to buy — generate ideas about the strategic approach to buying
-- Titles must be 2-4 words — short strategic labels like survey answer choices
-- Each option should be informed by the financial data (reference it in the blurbs) but the TITLE stays framework-level
-
-Examples of GOOD titles: "Geographic Expansion", "Bolt-On Adjacencies", "Manufacturing Capability", "Standalone Brands", "Premium Brand Play", "Vertical Integration", "DTC Channel Build", "Innovation Leaders"
-Examples of BAD titles (too product/market specific): "Commercial Food Service", "Outdoor Cooking Brands", "Smart Kitchen Tech", "Health & Wellness Products", "Latin American Markets"
+QUALITY RULES:
+- Titles must be 2-4 words — short enough to scan quickly during pairwise voting
+- Options within a dimension must be clearly distinguishable — a voter should never think "these are basically the same thing"
+- Each option must reflect the financial data and company context above — if you can swap the company name and the option still works, it's too generic
+- NEVER generate options that are just synonyms of each other (e.g., "Growth Expansion" vs "Revenue Growth" vs "Scale Revenues" — these are the same thing)
 
 BLURB RULES (for ideas):
 - "blurb" must be a JSON array of 2-3 strings
-- Blurbs connect the strategic option to THIS company's specific situation — use the financial data here
+- The FIRST bullet must be a plain-English sentence that a non-MBA person would understand — no jargon, no acronyms, no buzzwords
+- Remaining bullets connect the strategic option to THIS company's specific situation — reference the financial data
 - Under 15 words per bullet — punchy, scannable
 - Use **bold** on one key phrase per idea
 
