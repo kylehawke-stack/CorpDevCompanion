@@ -83,69 +83,7 @@ function loadInvenPool(): InvenCompany[] {
   }
 }
 
-/**
- * Keyword-based pre-filtering of Inven pool using Step 2 ranking titles.
- * Scores each company by keyword matches in name + desc, returns top N.
- */
-function filterInvenPool(
-  allCompanies: InvenCompany[],
-  rankings: RankingSummary[],
-  maxResults = 35
-): InvenCompany[] {
-  // Extract keywords from top 10 ranking titles
-  const stopWords = new Set([
-    "and", "the", "for", "with", "from", "into", "that", "this", "are",
-    "was", "has", "have", "been", "will", "can", "its", "their", "our",
-    "all", "but", "not", "also", "more", "other", "such", "than", "very",
-  ]);
-  const keywords: string[] = [];
-  for (const r of rankings.slice(0, 10)) {
-    const words = r.title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, "")
-      .split(/\s+/)
-      .filter((w) => w.length > 2 && !stopWords.has(w));
-    keywords.push(...words);
-  }
-  const keywordSet = new Set(keywords);
-  if (keywordSet.size === 0) return allCompanies.slice(0, maxResults);
 
-  // Score each company
-  const scored = allCompanies.map((c) => {
-    const text = `${c.name} ${c.desc}`.toLowerCase();
-    let score = 0;
-    for (const kw of keywordSet) {
-      // Count occurrences
-      const regex = new RegExp(`\\b${kw}`, "gi");
-      const matches = text.match(regex);
-      if (matches) score += matches.length;
-    }
-    return { company: c, score };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
-
-  // Take top results; if fewer than 15 match, pad with random sample
-  const matched = scored.filter((s) => s.score > 0);
-  if (matched.length >= maxResults) {
-    return matched.slice(0, maxResults).map((s) => s.company);
-  }
-
-  const result = matched.map((s) => s.company);
-  if (result.length < 15) {
-    const used = new Set(result.map((c) => c.name));
-    const unmatched = allCompanies.filter((c) => !used.has(c.name));
-    // Shuffle and pad
-    for (let i = unmatched.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [unmatched[i], unmatched[j]] = [unmatched[j], unmatched[i]];
-    }
-    const needed = Math.min(maxResults - result.length, unmatched.length);
-    result.push(...unmatched.slice(0, needed));
-  }
-
-  return result.slice(0, maxResults);
-}
 
 /**
  * Normalize blurb: if Claude returns a string, split into sentences as bullets.
@@ -164,24 +102,6 @@ function normalizeBlurb(blurb: string | string[]): string[] {
 function formatMarketCap(mc: number): string {
   if (mc >= 1e9) return `$${(mc / 1e9).toFixed(1)}B`;
   return `$${(mc / 1e6).toFixed(0)}M`;
-}
-
-/**
- * Fetch acquirer's financial profile from FMP.
- */
-async function fetchAcquirerProfile(
-  fmpKey: string
-): Promise<FmpProfile | null> {
-  try {
-    const res = await fetch(
-      `https://financialmodelingprep.com/stable/profile?symbol=HBB&apikey=${fmpKey}`
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data) && data.length > 0 ? data[0] : null;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -288,16 +208,8 @@ export default async function handler(req: Request, _context: Context) {
       // @ts-expect-error — cache_control is supported by the API but not fully typed in all SDK versions
       cache_control: competitorPromptData ? undefined : { type: "ephemeral" },
     });
-  } else if (fmpKey) {
-    // Fallback: fetch basic acquirer profile
-    const profile = await fetchAcquirerProfile(fmpKey);
-    if (profile) {
-      const mcap = formatMarketCap(profile.marketCap);
-      systemBlocks.push({
-        type: "text" as const,
-        text: `ACQUIRER FINANCIAL PROFILE:\n- Company: ${profile.companyName} (${profile.symbol})\n- Market Cap: ${mcap}\n- Share Price: $${profile.price.toFixed(2)}\n- Sector: ${profile.sector} — ${profile.industry}\n- Employees: ${Number(profile.fullTimeEmployees).toLocaleString()}\n\nACQUISITION SIZING CONSTRAINT: With a ${mcap} market cap, target companies valued at roughly $25M-$250M.`,
-      });
-    }
+  } else {
+    console.warn("[generate-company-ideas] WARNING: promptData not available — Claude will have limited company context");
   }
 
   // Block 3: Competitor financial profiles (cached)
@@ -360,16 +272,15 @@ Use these competitors to INSPIRE acquisition target ideas for the target company
 `;
   }
 
-  // Load and filter Inven.ai candidate pool
+  // Load the full Inven.ai candidate pool — send all companies to Claude unfiltered
   const invenPool = loadInvenPool();
-  const filteredPool = invenPool.length > 0 ? filterInvenPool(invenPool, rankings) : [];
-  console.log(`[generate-company-ideas] Inven pool: ${invenPool.length} total, ${filteredPool.length} filtered`);
+  console.log(`[generate-company-ideas] Inven pool: ${invenPool.length} companies loaded (sending full list)`);
 
   let invenSection = "";
-  if (filteredPool.length > 0) {
+  if (invenPool.length > 0) {
     invenSection = `
-INVEN.AI CANDIDATE POOL — Pre-screened acquisition targets:
-${filteredPool.map((c, i) => `${i + 1}. ${c.name} (${c.url})\n   ${c.desc}`).join("\n")}
+INVEN.AI CANDIDATE POOL — Pre-screened acquisition targets (${invenPool.length} companies):
+${invenPool.map((c, i) => `${i + 1}. ${c.name} (${c.url})\n   ${c.desc}`).join("\n")}
 
 `;
   }
@@ -381,9 +292,10 @@ Top-ranked market segments and product categories:
 ${topRankings}
 
 Generate SPECIFIC COMPANY acquisition targets that align with these top-ranked themes.
-${filteredPool.length > 0 ? `
+${invenPool.length > 0 ? `
 INSTRUCTIONS FOR CANDIDATE POOL:
-- Select 10-12 of the best fits from the INVEN.AI CANDIDATE POOL above AND generate 8-10 on your own
+- Review ALL ${invenPool.length} companies in the INVEN.AI CANDIDATE POOL above
+- Select 10-12 of the best fits from the pool AND generate 8-10 on your own
 - Evaluate pool companies critically — don't include one just because it's listed
 - For pool companies, write blurb bullets based on the description provided
 - Mark each company with "fromPool": true if from the pool, "fromPool": false if your own suggestion
@@ -473,7 +385,7 @@ Return ONLY valid JSON:
 
     // Build a lookup for Inven pool companies by name (for URL fallback)
     const invenByName = new Map<string, InvenCompany>();
-    for (const c of filteredPool) {
+    for (const c of invenPool) {
       invenByName.set(c.name.toLowerCase(), c);
     }
 
