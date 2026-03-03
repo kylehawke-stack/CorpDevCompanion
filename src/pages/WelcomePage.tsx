@@ -187,6 +187,12 @@ export function WelcomePage() {
                 >
                   Design Options A/B
                 </a>
+                <a
+                  href="#journey"
+                  className="text-xs text-accent hover:text-accent-hover underline underline-offset-2 transition-colors"
+                >
+                  Journey (Production)
+                </a>
               </div>
             </>
           ) : (
