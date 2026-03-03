@@ -222,13 +222,13 @@ export function HowItWorksPage() {
       <div className="max-w-4xl mx-auto px-4 py-12">
         {/* ── Page Header ── */}
         <div className="text-center mb-14">
-          <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">
+          <p className="uppercase tracking-widest text-xs font-semibold text-[#f97316] mb-3">
             How It Works
           </p>
-          <h1 className="text-3xl font-bold text-[#f1f5f9] mb-3 text-balance">
+          <h1 className="text-4xl font-bold text-[#f1f5f9] mb-4 text-balance">
             Expert guidance and team alignment on your M&A strategy
           </h1>
-          <p className="text-sm text-[#94a3b8] max-w-2xl mx-auto leading-relaxed text-pretty">
+          <p className="text-base text-[#cbd5e1] max-w-2xl mx-auto leading-relaxed text-pretty">
             Corp Dev Companion combines rigorous financial and market analysis with
             collaborative team input to produce a consensus-driven acquisition strategy.
             Here is the full process.
@@ -242,7 +242,7 @@ export function HowItWorksPage() {
               {/* Zone label */}
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
-                <p className="uppercase tracking-widest text-[10px] font-semibold" style={{ color: zone.color }}>
+                <p className="uppercase tracking-widest text-xs font-semibold" style={{ color: zone.color }}>
                   {zone.zoneLabel}
                 </p>
                 <div className="flex-1 h-px" style={{ backgroundColor: `${zone.color}30` }} />
@@ -266,14 +266,14 @@ export function HowItWorksPage() {
                           {step.num}
                         </span>
                         <div>
-                          <p className="text-sm font-semibold text-[#e2e8f0]">{step.title}</p>
+                          <p className="text-base font-semibold text-[#f1f5f9]">{step.title}</p>
                           {'voteInfo' in step && step.voteInfo && (
-                            <p className="text-[10px] text-[#64748b] mt-0.5">{step.voteInfo}</p>
+                            <p className="text-xs text-[#94a3b8] mt-0.5">{step.voteInfo}</p>
                           )}
                         </div>
                       </div>
                       <span
-                        className="text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0"
+                        className="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full shrink-0"
                         style={{ color: step.badgeColor, backgroundColor: `${step.badgeColor}18` }}
                       >
                         {step.badge}
