@@ -38,8 +38,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
     case 'SET_STRATEGIC_IDEAS': {
-      // Don't change phase if user is in how_it_works, peer selection, or benchmarking flow
-      const keepPhase = state.phase === 'how_it_works' || state.phase === 'peer_selection' || state.phase === 'peer_benchmarking';
+      // Only advance to 'briefing' if user is on the analyzing screen.
+      // In all other phases (voting, transition, etc.), keep the current phase
+      // to avoid a race condition where a late-resolving briefing promise
+      // resets the user back to the briefing page.
+      const keepPhase = state.phase !== 'analyzing';
       return {
         ...state,
         voterId: crypto.randomUUID(),

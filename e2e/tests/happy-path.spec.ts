@@ -2,24 +2,28 @@ import { test, expect } from "@playwright/test";
 import { setupMockApi } from "../helpers/mock-api.ts";
 
 /**
- * Cast votes by clicking the left card repeatedly.
+ * Cast votes by pressing the 'a' key (selects left card).
  * The voting UI has a ~100ms animation delay between pairs.
  */
 async function castVotes(page: import("@playwright/test").Page, count: number) {
   for (let i = 0; i < count; i++) {
-    // Wait for a card with "Press A" text (left card is ready)
-    const leftCard = page.locator("text=Press A").first();
-    await leftCard.waitFor({ state: "visible", timeout: 5000 });
-    // Click the card containing "Press A" — it's inside the left IdeaCard
-    await leftCard.locator("..").locator("..").locator("..").click();
-    // Small pause for animation
+    await page.locator("text=Press A").first().waitFor({ timeout: 5000 });
+    await page.keyboard.press("a");
     await page.waitForTimeout(200);
   }
 }
 
 test.describe("Happy path: full flow", () => {
   test("Welcome → Voting → Results", async ({ page }) => {
-    await setupMockApi(page);
+    test.setTimeout(120_000); // 85 votes + navigation + mock delays
+    // Add delays to idea-generation mocks so TransitionPage is visible
+    // before the phase auto-advances to voting
+    await setupMockApi(page, {
+      "generate-briefing": { delay: 1000 },
+      "fetch-peer-data": { delay: 500 },
+      "generate-ideas": { delay: 1000 },
+      "generate-company-ideas": { delay: 1000 },
+    });
     await page.goto("/");
 
     // ── Step 1: WelcomePage ──
@@ -44,7 +48,7 @@ test.describe("Happy path: full flow", () => {
     await continueBtn.click();
 
     // ── Step 3: PeerSelectionPage ──
-    await expect(page.locator("text=Select Competitors")).toBeVisible();
+    await expect(page.locator("h1:has-text('Select Competitors')")).toBeVisible();
 
     // Select 3 peers
     await page.locator("text=SharkNinja").click();

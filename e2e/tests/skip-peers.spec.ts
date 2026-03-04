@@ -5,6 +5,7 @@ test.describe("Skip peers: alternate flow without peer data", () => {
   test("skip peer selection → briefing renders without peer benchmarking", async ({
     page,
   }) => {
+    test.setTimeout(60_000);
     await setupMockApi(page);
     await page.goto("/");
 

@@ -13,6 +13,7 @@
       "dependencies": [
         "npm:@anthropic-ai/sdk@0.78",
         "npm:@eslint/js@^9.39.1",
+        "npm:@playwright/test@^1.58.2",
         "npm:@supabase/supabase-js@^2.98.0",
         "npm:@tailwindcss/vite@^4.2.1",
         "npm:@types/node@^24.10.1",
@@ -31,7 +32,8 @@
         "npm:tailwindcss@^4.2.1",
         "npm:typescript-eslint@^8.48.0",
         "npm:typescript@~5.9.3",
-        "npm:vite@^7.3.1"
+        "npm:vite@^7.3.1",
+        "npm:vitest@^4.0.18"
       ]
     }
   }

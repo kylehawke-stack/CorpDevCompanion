@@ -134,7 +134,7 @@ export async function cachedFmpFetch(
       p_params_key: paramsKey,
       p_data_category: category,
       p_response_data: result,
-    }).catch(() => {});
+    }).then(() => {}, () => {});
   }
 
   return result;
