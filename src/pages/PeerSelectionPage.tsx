@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
-import { fetchPeerData, generateBriefing, searchCompany, type CompanySearchResult } from '../lib/api.ts';
+import { fetchPeerData, searchCompany, type CompanySearchResult } from '../lib/api.ts';
 import { Button } from '../components/ui/Button.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import { fetchCrowdPeers, recordPeerSelections, mergePeerLists, type CrowdPeer } from '../lib/crowdPeers.ts';
@@ -15,9 +15,7 @@ function formatMarketCap(mc: number): string {
 export function PeerSelectionPage() {
   const { state, dispatch, getBriefingPromise } = useGameState();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
 
   // Typeahead state
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,11 +106,12 @@ export function PeerSelectionPage() {
 
   const handleSelectCompetitors = async () => {
     if (selected.size < 3) return;
-    setLoading(true);
-    setError(null);
 
     const symbols = Array.from(selected);
     dispatch({ type: 'SELECT_PEERS', symbols });
+
+    // Navigate immediately to briefing
+    dispatch({ type: 'SET_PHASE', phase: 'briefing' });
 
     // Fire-and-forget: record selections to crowd wisdom table
     const targetSymbol = state.companyProfile?.symbol;
@@ -123,42 +122,22 @@ export function PeerSelectionPage() {
       recordPeerSelections(targetSymbol, selectedPeerData);
     }
 
-    try {
-      // Include the target company in the comparison
-      const allSymbols = [state.companyProfile!.symbol, ...symbols];
-      const { peerFinancials, competitorPromptData } = await fetchPeerData(allSymbols);
+    // Fire-and-forget: fetch peer financial data in background
+    const allSymbols = [state.companyProfile!.symbol, ...symbols];
+    fetchPeerData(allSymbols)
+      .then(({ peerFinancials, competitorPromptData }) => {
+        dispatch({ type: 'SET_PEER_FINANCIALS', peerFinancials, competitorPromptData });
+      })
+      .catch((err) => {
+        console.error('Background peer data fetch failed:', err);
+      });
 
-      // Wait for briefing to complete before navigating to BriefingPage
-      const briefingPromise = getBriefingPromise();
-      if (briefingPromise && state.ideas.length === 0) {
-        setLoadingStatus('Preparing intelligence briefing...');
-        try {
-          await briefingPromise;
-        } catch {
-          // Briefing failed — retry once WITH competitor data for a richer briefing
-          setLoadingStatus('Retrying briefing with competitor data...');
-          try {
-            const briefing = await generateBriefing(state.promptData!, competitorPromptData);
-            const allHighlights = [...state.financialHighlights, ...(briefing.highlights ?? [])];
-            dispatch({
-              type: 'SET_STRATEGIC_IDEAS',
-              ideas: briefing.ideas,
-              highlights: allHighlights,
-              revenueSegments: state.revenueSegments,
-              competitorProfiles: state.competitorProfiles,
-              promptData: state.promptData,
-            });
-          } catch (retryErr) {
-            console.error('Briefing retry with competitor data failed:', retryErr);
-            // Let BriefingPage handle the final fallback
-          }
-        }
-      }
-
-      dispatch({ type: 'SET_PEER_FINANCIALS', peerFinancials, competitorPromptData });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch peer data');
-      setLoading(false);
+    // Fire-and-forget: ensure briefing completes (BriefingPage has its own retry)
+    const briefingPromise = getBriefingPromise();
+    if (briefingPromise && state.ideas.length === 0) {
+      briefingPromise.catch(() => {
+        // BriefingPage will handle retry
+      });
     }
   };
 
@@ -191,7 +170,6 @@ export function PeerSelectionPage() {
                   key={peer.symbol}
                   peer={peer}
                   isSelected={isSelected}
-                  loading={loading}
                   onToggle={togglePeer}
                   selectionCount={peer.selectionCount}
                 />
@@ -209,9 +187,8 @@ export function PeerSelectionPage() {
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={() => { if (searchResults.length > 0) setShowDropdown(true); }}
-                disabled={loading}
                 placeholder="Add another company by name or ticker..."
-                className="w-full px-4 py-3 rounded-xl border-2 border-dashed border-edge bg-surface-card text-sm text-heading placeholder:text-dimmed focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
+                className="w-full px-4 py-3 rounded-xl border-2 border-dashed border-edge bg-surface-card text-sm text-heading placeholder:text-dimmed focus:outline-none focus:border-accent transition-colors"
               />
               {searchLoading && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -248,36 +225,24 @@ export function PeerSelectionPage() {
           )}
         </div>
 
-        {loading ? (
-          <div className="bg-surface-card rounded-xl shadow-lg border border-edge p-8 text-center">
-            <Spinner size="lg" />
-            <p className="text-sm text-body font-medium mt-4">
-              {loadingStatus || `Fetching financial data for ${selected.size} competitors...`}
-            </p>
-            <p className="text-xs text-dimmed mt-1">
-              {loadingStatus ? 'Almost there' : 'Pulling income statements and market data for benchmarking'}
-            </p>
-          </div>
-        ) : (
-          <div className="text-center space-y-3">
-            <Button
-              onClick={handleSelectCompetitors}
-              disabled={selected.size < 3}
-              size="lg"
-              className="px-10"
+        <div className="text-center space-y-3">
+          <Button
+            onClick={handleSelectCompetitors}
+            disabled={selected.size < 3}
+            size="lg"
+            className="px-10"
+          >
+            Step 1: View Company Analysis
+          </Button>
+          <div>
+            <button
+              onClick={handleSkip}
+              className="text-sm text-muted hover:text-accent underline"
             >
-              Select Competitors ({selected.size}/3-5)
-            </Button>
-            <div>
-              <button
-                onClick={handleSkip}
-                className="text-sm text-muted hover:text-accent underline"
-              >
-                Skip peer analysis
-              </button>
-            </div>
+              Skip peer analysis
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -286,25 +251,22 @@ export function PeerSelectionPage() {
 function PeerCard({
   peer,
   isSelected,
-  loading,
   onToggle,
   selectionCount,
 }: {
   peer: PeerCompany;
   isSelected: boolean;
-  loading: boolean;
   onToggle: (symbol: string) => void;
   selectionCount?: number;
 }) {
   return (
     <button
       onClick={() => onToggle(peer.symbol)}
-      disabled={loading}
-      className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+      className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left cursor-pointer ${
         isSelected
           ? 'border-accent bg-accent/10 shadow-md'
           : 'border-edge bg-surface-card hover:border-edge-light hover:shadow-sm'
-      } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      }`}
     >
       {peer.logo ? (
         <img

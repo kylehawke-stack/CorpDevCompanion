@@ -6,7 +6,7 @@ import { Button } from '../ui/Button.tsx';
 import { useVoting } from '../../hooks/useVoting.ts';
 import { useIdeaInjection } from '../../hooks/useIdeaInjection.ts';
 import { useGameState } from '../../context/GameStateContext.tsx';
-import { syncPhaseChange, updateSessionField } from '../../lib/supabaseSync.ts';
+import { syncPhaseChange, updateSessionField, syncUserDirections } from '../../lib/supabaseSync.ts';
 import { getOrCreateVoterId } from '../../lib/voterId.ts';
 import { supabase } from '../../lib/supabase.ts';
 import { CreateSessionModal } from '../session/CreateSessionModal.tsx';
@@ -97,6 +97,9 @@ export function VotingArena({ onViewResults }: VotingArenaProps) {
     const trimmed = directionText.trim();
     if (trimmed) {
       dispatch({ type: 'ADD_DIRECTION', direction: trimmed });
+      if (state.sessionId) {
+        syncUserDirections(state.sessionId, [...state.userDirections, trimmed]);
+      }
       setDirectionText('');
       setShowDirectionModal(false);
     }

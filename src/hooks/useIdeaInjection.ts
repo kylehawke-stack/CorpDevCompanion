@@ -19,6 +19,16 @@ export function useIdeaInjection() {
 
     const votesSinceInjection = state.totalVoteCount - state.lastInjectionAtVoteCount;
 
+    console.log('[useIdeaInjection]', {
+      phase: state.phase,
+      totalVoteCount: state.totalVoteCount,
+      lastInjectionAtVoteCount: state.lastInjectionAtVoteCount,
+      votesSinceInjection,
+      ideaCount: state.ideas.length,
+      inFlight: injectionInFlight.current,
+      shouldTrigger: votesSinceInjection >= INJECTION_INTERVAL && state.ideas.length < MAX_IDEAS && !injectionInFlight.current && state.totalVoteCount >= INJECTION_INTERVAL,
+    });
+
     if (
       votesSinceInjection >= INJECTION_INTERVAL &&
       state.ideas.length < MAX_IDEAS &&

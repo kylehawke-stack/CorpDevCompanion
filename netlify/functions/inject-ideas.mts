@@ -342,7 +342,7 @@ Return ONLY valid JSON:
 }`;
 
   try {
-    const message = await client.messages.create({
+    const stream = client.messages.stream({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1500,
       temperature: 0.8,
@@ -350,87 +350,111 @@ Return ONLY valid JSON:
       messages: [{ role: "user", content: prompt }],
     });
 
-    const text =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    // Collect full text for post-processing while streaming to keep connection alive
+    let fullText = "";
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const event of stream) {
+            if (
+              event.type === "content_block_delta" &&
+              event.delta.type === "text_delta"
+            ) {
+              fullText += event.delta.text;
+              controller.enqueue(encoder.encode(event.delta.text));
+            }
+          }
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return new Response(
-        JSON.stringify({ error: "Failed to parse AI response" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
+          // Post-stream: parse, dedup, enrich, then append processed data
+          const jsonMatch = fullText.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            controller.enqueue(encoder.encode("__ERROR__Failed to parse AI response"));
+            controller.close();
+            return;
+          }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+          const parsed = JSON.parse(jsonMatch[0]);
+          const ideas = parsed.ideas.map(
+            (idea: { title: string; tier: string; blurb: string | string[]; linkedTheme?: string; fromPool?: boolean }) => ({
+              id: crypto.randomUUID(),
+              title: idea.title,
+              tier: idea.tier,
+              blurb: normalizeBlurb(idea.blurb),
+              source: idea.fromPool ? "inven_sourced" : "claude_injected",
+              createdAt: Date.now(),
+              linkedTheme: idea.linkedTheme,
+              tags: [] as string[],
+              website: undefined as string | undefined,
+              logoUrl: undefined as string | undefined,
+              _fromPool: !!idea.fromPool,
+            })
+          );
 
-    const ideas = parsed.ideas.map(
-      (idea: { title: string; tier: string; blurb: string | string[]; linkedTheme?: string; fromPool?: boolean }) => ({
-        id: crypto.randomUUID(),
-        title: idea.title,
-        tier: idea.tier,
-        blurb: normalizeBlurb(idea.blurb),
-        source: idea.fromPool ? "inven_sourced" : "claude_injected",
-        createdAt: Date.now(),
-        linkedTheme: idea.linkedTheme,
-        tags: [] as string[],
-        website: undefined as string | undefined,
-        logoUrl: undefined as string | undefined,
-        _fromPool: !!idea.fromPool,
-      })
-    );
+          // Filter out near-duplicates of existing ideas
+          const dedupedIdeas = ideas.filter((newIdea: { title: string }) => {
+            return !existingTitles.some((existing) => isSimilar(newIdea.title, existing));
+          });
+          ideas.length = 0;
+          ideas.push(...dedupedIdeas);
 
-    // Filter out near-duplicates of existing ideas
-    const dedupedIdeas = ideas.filter((newIdea: { title: string }) => {
-      return !existingTitles.some((existing) => isSimilar(newIdea.title, existing));
+          // Enrich Step 3 company ideas with FMP data
+          if (fmpKey && votingStep === "step3") {
+            const enrichments = await Promise.allSettled(
+              ideas
+                .filter((i: { tier: string }) => i.tier === "specific_company")
+                .map((i: { title: string }) => cachedEnrichCompany(i.title, fmpKey))
+            );
+            let enrichIdx = 0;
+            for (const idea of ideas) {
+              if (idea.tier === "specific_company") {
+                const result = enrichments[enrichIdx++];
+                if (result.status === "fulfilled" && result.value) {
+                  idea.tags = result.value.tags;
+                  idea.website = result.value.website;
+                  idea.logoUrl = result.value.logoUrl;
+                }
+              }
+            }
+          }
+
+          // Fallback enrichment for Inven-sourced private companies
+          if (invenPool.length > 0) {
+            const invenByName = new Map<string, InvenCompany>();
+            for (const c of invenPool) {
+              invenByName.set(c.name.toLowerCase(), c);
+            }
+            for (const idea of ideas) {
+              if (idea._fromPool && (!idea.tags || idea.tags.length === 0)) {
+                const match = invenByName.get(idea.title.toLowerCase());
+                if (match) {
+                  idea.website = match.url;
+                  idea.tags = ["Private", "Inven.ai sourced"];
+                }
+              }
+            }
+          }
+
+          // Clean up internal field
+          const cleanedIdeas = ideas.map(({ _fromPool, ...rest }: { _fromPool: boolean; [key: string]: unknown }) => rest);
+
+          // Append processed ideas after delimiter
+          controller.enqueue(encoder.encode("__PROCESSED__" + JSON.stringify({ ideas: cleanedIdeas })));
+          controller.close();
+        } catch (streamErr) {
+          console.error("inject-ideas stream error:", streamErr);
+          controller.error(streamErr);
+        }
+      },
     });
 
-    // Replace ideas array with deduped version
-    ideas.length = 0;
-    ideas.push(...dedupedIdeas);
-
-    // Enrich Step 3 company ideas with FMP data
-    if (fmpKey && votingStep === "step3") {
-      const enrichments = await Promise.allSettled(
-        ideas
-          .filter((i: { tier: string }) => i.tier === "specific_company")
-          .map((i: { title: string }) => cachedEnrichCompany(i.title, fmpKey))
-      );
-      let enrichIdx = 0;
-      for (const idea of ideas) {
-        if (idea.tier === "specific_company") {
-          const result = enrichments[enrichIdx++];
-          if (result.status === "fulfilled" && result.value) {
-            idea.tags = result.value.tags;
-            idea.website = result.value.website;
-            idea.logoUrl = result.value.logoUrl;
-          }
-        }
-      }
-    }
-
-    // Fallback enrichment for Inven-sourced private companies
-    if (invenPool.length > 0) {
-      const invenByName = new Map<string, InvenCompany>();
-      for (const c of invenPool) {
-        invenByName.set(c.name.toLowerCase(), c);
-      }
-      for (const idea of ideas) {
-        if (idea._fromPool && (!idea.tags || idea.tags.length === 0)) {
-          const match = invenByName.get(idea.title.toLowerCase());
-          if (match) {
-            idea.website = match.url;
-            idea.tags = ["Private", "Inven.ai sourced"];
-          }
-        }
-      }
-    }
-
-    // Clean up internal field
-    const cleanedIdeas = ideas.map(({ _fromPool, ...rest }: { _fromPool: boolean; [key: string]: unknown }) => rest);
-
-    return new Response(JSON.stringify({ ideas: cleanedIdeas }), {
+    return new Response(readable, {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Accel-Buffering": "no",
+        "Cache-Control": "no-cache",
+      },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

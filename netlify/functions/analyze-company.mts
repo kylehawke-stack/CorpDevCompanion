@@ -25,7 +25,7 @@ interface RequestBody {
  * (most valuable for M&A intelligence) and a brief intro from prepared remarks.
  * Each transcript is ~20K chars; we cap at ~5K per transcript.
  */
-function truncateTranscript(content: string, budget: number = 4000): string {
+export function truncateTranscript(content: string, budget: number = 4000): string {
   if (content.length <= budget) return content;
 
   // Q&A section typically starts with the operator announcing questions
@@ -70,15 +70,19 @@ function truncateTranscript(content: string, budget: number = 4000): string {
   );
 }
 
-function formatCurrency(val: number): string {
+export function formatCurrency(val: number): string {
   if (Math.abs(val) >= 1e9) return `$${(val / 1e9).toFixed(1)}B`;
   if (Math.abs(val) >= 1e6) return `$${(val / 1e6).toFixed(0)}M`;
   if (Math.abs(val) >= 1e3) return `$${(val / 1e3).toFixed(0)}K`;
   return `$${val.toFixed(0)}`;
 }
 
-function pct(val: number): string {
+export function pct(val: number): string {
   return `${(val * 100).toFixed(1)}%`;
+}
+
+function fulfilled<T>(r: PromiseSettledResult<T>): T | null {
+  return r.status === 'fulfilled' ? r.value : null;
 }
 
 export default async function handler(req: Request, _context: Context) {
@@ -116,13 +120,7 @@ export default async function handler(req: Request, _context: Context) {
     if (qNum === 0) { qNum = 4; qYear--; }
   }
 
-  const [
-    profileData,
-    incomeData,
-    balanceData,
-    keyMetricsData,
-    ...transcriptResults
-  ] = await Promise.all([
+  const settled1 = await Promise.allSettled([
     cachedFmpFetch("profile", { symbol }, fmpKey),
     cachedFmpFetch("income-statement", { symbol, period: "annual", limit: "4" }, fmpKey),
     cachedFmpFetch("balance-sheet-statement", { symbol, period: "annual", limit: "1" }, fmpKey),
@@ -131,9 +129,11 @@ export default async function handler(req: Request, _context: Context) {
       cachedFmpFetch("earning-call-transcript", { symbol, year: String(q.year), quarter: String(q.quarter) }, fmpKey)
     ),
   ]);
+  const [profileData, incomeData, balanceData, keyMetricsData, ...transcriptResults] =
+    settled1.map((r) => fulfilled(r));
 
   // Fetch analyst data + cash flow + revenue segmentation in parallel
-  const [estimatesData, priceTargetData, cashFlowData, revenueProductData, revenueGeoData, peersCsvText, secFilingsData, maSearchData, stockNewsData] = await Promise.all([
+  const settled2 = await Promise.allSettled([
     cachedFmpFetch("analyst-estimates", { symbol, period: "annual", limit: "1" }, fmpKey),
     cachedFmpFetch("price-target-consensus", { symbol }, fmpKey),
     cachedFmpFetch("cash-flow-statement", { symbol, period: "annual", limit: "2" }, fmpKey),
@@ -159,6 +159,8 @@ export default async function handler(req: Request, _context: Context) {
     })(),
     cachedFmpFetch("news/stock", { symbols: symbol, from: fromDate, to: toDate, limit: "100" }, fmpKey),
   ]);
+  const [estimatesData, priceTargetData, cashFlowData, revenueProductData, revenueGeoData, peersCsvText, secFilingsData, maSearchData, stockNewsData] =
+    settled2.map((r) => fulfilled(r));
 
   // Collect all successfully fetched transcripts (newest first)
   const allTranscripts: { quarter: number; year: number; content: string }[] = [];

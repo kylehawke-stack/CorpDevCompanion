@@ -44,7 +44,7 @@ export function CreateSessionModal({ onClose }: CreateSessionModalProps) {
       <div className="bg-surface-card rounded-xl shadow-2xl border border-edge p-6 max-w-md w-full mx-4">
         {!created ? (
           <>
-            <h3 className="text-lg font-semibold text-heading mb-1">Go Live</h3>
+            <h3 className="text-lg font-semibold text-heading mb-1">Link / Add Others</h3>
             <p className="text-sm text-muted mb-4">
               Create a collaborative session so others can vote alongside you.
               You'll get a shareable link to invite participants.

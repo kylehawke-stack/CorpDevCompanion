@@ -35,6 +35,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         companyProfile: action.companyProfile,
         sessionName: `${action.companyProfile.companyName} — ${new Date().toLocaleDateString()}`,
         phase: nextPhase,
+        // Persist financial data immediately so it survives across page transitions
+        financialHighlights: action.highlights ?? state.financialHighlights,
+        revenueSegments: action.revenueSegments ?? state.revenueSegments,
+        competitorProfiles: action.competitorProfiles ?? state.competitorProfiles,
       };
     }
     case 'SET_STRATEGIC_IDEAS': {
@@ -149,7 +153,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         peerFinancials: action.peerFinancials,
         competitorPromptData: action.competitorPromptData ?? state.competitorPromptData,
-        phase: 'briefing',
       };
     case 'RESET_SESSION':
       clearState();

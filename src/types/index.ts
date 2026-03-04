@@ -289,7 +289,7 @@ export interface GameState {
 }
 
 export type GameAction =
-  | { type: 'START_ANALYSIS'; companyProfile: CompanyProfile }
+  | { type: 'START_ANALYSIS'; companyProfile: CompanyProfile; highlights?: FinancialHighlight[]; revenueSegments?: RevenueSegment[]; competitorProfiles?: CompetitorProfile[] }
   | { type: 'SET_STRATEGIC_IDEAS'; ideas: Idea[]; highlights: FinancialHighlight[]; revenueSegments: RevenueSegment[]; competitorProfiles: CompetitorProfile[]; promptData?: string }
   | { type: 'ADD_VOTE'; vote: Vote }
   | { type: 'ADD_IDEAS'; ideas: Idea[] }

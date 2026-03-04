@@ -91,7 +91,8 @@ function buildParamsKey(params: Record<string, string>): string {
 export async function cachedFmpFetch(
   endpoint: string,
   params: Record<string, string>,
-  fmpKey: string
+  fmpKey: string,
+  timeoutMs: number = 5000
 ): Promise<any | null> {
   const paramsKey = buildParamsKey(params);
   const category = categorize(endpoint);
@@ -114,16 +115,21 @@ export async function cachedFmpFetch(
     }
   }
 
-  // 2. Fetch from FMP
+  // 2. Fetch from FMP (with timeout)
   let result: any | null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const qs = new URLSearchParams({ ...params, apikey: fmpKey });
     const res = await fetch(
-      `https://financialmodelingprep.com/stable/${endpoint}?${qs}`
+      `https://financialmodelingprep.com/stable/${endpoint}?${qs}`,
+      { signal: controller.signal }
     );
+    clearTimeout(timer);
     if (!res.ok) return null;
     result = await res.json();
   } catch {
+    clearTimeout(timer);
     return null;
   }
 

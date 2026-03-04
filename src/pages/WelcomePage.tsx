@@ -4,12 +4,16 @@ import { Button } from '../components/ui/Button.tsx';
 
 const COMPANIES = [
   { symbol: 'HBB', name: 'Hamilton Beach Brands', logo: 'https://images.financialmodelingprep.com/symbol/HBB.png' },
+  { symbol: 'TTNDY', name: 'Techtronic Industries', logo: 'https://images.financialmodelingprep.com/symbol/TTNDY.png' },
+  { symbol: 'TREX', name: 'Trex Company', logo: 'https://images.financialmodelingprep.com/symbol/TREX.png' },
+  { symbol: 'PNR', name: 'Pentair', logo: 'https://images.financialmodelingprep.com/symbol/PNR.png' },
 ];
 
 export function WelcomePage() {
   const { dispatch } = useGameState();
   const [error, setError] = useState<string | null>(null);
-  const selected = COMPANIES[0]; // Only HBB for now
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const selected = COMPANIES[selectedIdx];
 
   const handleStart = () => {
     setError(null);
@@ -48,14 +52,26 @@ export function WelcomePage() {
         </div>
 
         <div className="bg-surface-card rounded-xl shadow-lg border border-edge p-8">
-          <div className="text-center mb-6">
-            <h2 className="text-lg font-semibold text-heading">Company</h2>
-            <div className="mt-3 inline-flex items-center gap-3 px-5 py-4 bg-surface-elevated rounded-lg border border-edge">
-              <img src={selected.logo} alt="" className="w-10 h-10 rounded object-contain bg-white p-0.5" />
-              <div className="text-left">
-                <p className="font-semibold text-heading">{selected.name}</p>
-                <p className="text-xs text-muted">NYSE: {selected.symbol}</p>
-              </div>
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-heading text-center mb-3">Select a Company</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {COMPANIES.map((co, i) => (
+                <button
+                  key={co.symbol}
+                  onClick={() => setSelectedIdx(i)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 text-left transition-colors cursor-pointer ${
+                    i === selectedIdx
+                      ? 'border-accent bg-accent/5'
+                      : 'border-edge bg-surface-elevated hover:border-muted'
+                  }`}
+                >
+                  <img src={co.logo} alt="" className="w-9 h-9 rounded object-contain bg-white p-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-heading text-sm leading-tight truncate">{co.name}</p>
+                    <p className="text-xs text-muted">{co.symbol}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
 

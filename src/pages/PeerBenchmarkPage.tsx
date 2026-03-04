@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
 import { Button } from '../components/ui/Button.tsx';
 import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
+import { CreateSessionModal } from '../components/session/CreateSessionModal.tsx';
+import { supabase } from '../lib/supabase.ts';
+import { syncPhaseChange } from '../lib/supabaseSync.ts';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -257,9 +260,21 @@ export function PeerBenchmarkPage() {
   const { state, dispatch } = useGameState();
   const targetSymbol = state.companyProfile?.symbol;
   const targetName = state.companyProfile?.companyName || targetSymbol || 'Target';
+  const [showCreateSession, setShowCreateSession] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // Scroll to top on mount
+  useEffect(() => { window.scrollTo(0, 0); }, []);
 
   const handleContinue = () => {
     dispatch({ type: 'SET_PHASE', phase: 'voting_step1' });
+    if (state.sessionId) {
+      syncPhaseChange(state.sessionId, 'voting_step1');
+    }
+  };
+
+  const handleBack = () => {
+    dispatch({ type: 'SET_PHASE', phase: 'briefing' });
   };
 
   // Sort: target first, then peers by revenue desc
@@ -415,6 +430,41 @@ export function PeerBenchmarkPage() {
     return lines.join(' ');
   }, [target, sorted, targetSymbol, total, peerOnly]);
 
+  // M&A-oriented insight for Margin Stack
+  const marginInsight = useMemo(() => {
+    if (!target || sorted.length < 2) return '';
+
+    const lines: string[] = [];
+
+    const grossRank = getRank(sorted, targetSymbol!, 'grossMarginPct');
+    const opRank = getRank(sorted, targetSymbol!, 'operatingMarginPct');
+    const netRank = getRank(sorted, targetSymbol!, 'netMarginPct');
+
+    lines.push(`${targetSymbol} ranks #${grossRank} in gross margin (${pct(target.grossMarginPct)}), #${opRank} in operating margin (${pct(target.operatingMarginPct)}), and #${netRank} in net margin (${pct(target.netMarginPct)}) among the ${total}-company peer set.`);
+
+    // Gross-to-operating drop analysis
+    const grossToOp = (target.grossMarginPct ?? 0) - (target.operatingMarginPct ?? 0);
+    const peerGrossToOps = peerOnly
+      .filter(p => p.grossMarginPct != null && p.operatingMarginPct != null)
+      .map(p => (p.grossMarginPct! - p.operatingMarginPct!));
+    if (peerGrossToOps.length > 0) {
+      const avgDrop = peerGrossToOps.reduce((a, b) => a + b, 0) / peerGrossToOps.length;
+      if (grossToOp > avgDrop + 3) {
+        lines.push(`The ${grossToOp.toFixed(0)}pp drop from gross to operating margin exceeds the peer average of ${avgDrop.toFixed(0)}pp, suggesting higher SG&A or R&D intensity. An acquisition that brings operational scale could help close this gap.`);
+      } else if (grossToOp < avgDrop - 3) {
+        lines.push(`${targetSymbol} converts gross margin to operating margin more efficiently than peers (${grossToOp.toFixed(0)}pp drop vs. peer average ${avgDrop.toFixed(0)}pp), indicating strong operating leverage.`);
+      }
+    }
+
+    // Identify the margin leader
+    const bestGross = peerOnly.reduce((a, b) => (b.grossMarginPct ?? 0) > (a.grossMarginPct ?? 0) ? b : a, peerOnly[0]);
+    if (bestGross && (bestGross.grossMarginPct ?? 0) > (target.grossMarginPct ?? 0)) {
+      lines.push(`${bestGross.symbol} leads the peer set in gross margin at ${pct(bestGross.grossMarginPct)}, representing a potential benchmark for margin expansion through M&A — particularly if ${targetSymbol} acquires businesses with higher-margin product mixes.`);
+    }
+
+    return lines.join(' ');
+  }, [target, sorted, targetSymbol, total, peerOnly]);
+
   return (
     <div className="min-h-screen bg-[#0f1419] py-10 px-4">
       <div className="max-w-7xl mx-auto">
@@ -426,14 +476,47 @@ export function PeerBenchmarkPage() {
 
         {/* Header */}
         <div className="mb-8">
-          <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Peer Benchmarking</p>
-          <h1 className="text-2xl font-bold text-[#e2e8f0]">
-            {targetName}
-            <span className="text-[#64748b] font-normal text-lg ml-3">vs. Competitive Set</span>
-          </h1>
-          <p className="text-sm text-[#64748b] mt-1">
-            Financial comparison across {total} companies using most recent annual data
-          </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Peer Benchmarking</p>
+              <h1 className="text-2xl font-bold text-[#e2e8f0]">
+                {targetName}
+                <span className="text-[#64748b] font-normal text-lg ml-3">vs. Competitive Set</span>
+              </h1>
+              <p className="text-sm text-[#64748b] mt-1">
+                Financial comparison across {total} companies using most recent annual data
+              </p>
+            </div>
+            {supabase && (
+              state.isCollaborative && state.shareCode ? (
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-[#64748b] font-mono">
+                    {`${window.location.origin}${window.location.pathname}?s=${state.shareCode}`}
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?s=${state.shareCode}`);
+                      setLinkCopied(true);
+                      setTimeout(() => setLinkCopied(false), 2000);
+                    }}
+                    className="px-2 py-1 rounded bg-[#f97316]/20 text-[#f97316] text-xs font-medium hover:bg-[#f97316]/30 transition-colors"
+                  >
+                    {linkCopied ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              ) : state.ideas.length > 0 ? (
+                <button
+                  onClick={() => setShowCreateSession(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#f97316]/10 border border-[#f97316]/30 text-[#f97316] hover:bg-[#f97316]/20 hover:border-[#f97316]/50 transition-colors text-sm font-semibold whitespace-nowrap shrink-0"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Link / Add Others
+                </button>
+              ) : null
+            )}
+          </div>
         </div>
 
         {/* KPI Comparison Strip */}
@@ -683,41 +766,65 @@ export function PeerBenchmarkPage() {
               </div>
             </div>
           </div>
+
+          {/* Margin Stack */}
+          <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5">
+            <div className="flex flex-col lg:flex-row gap-6">
+              {/* Chart — 60% */}
+              <div className="lg:w-[60%] min-w-0">
+                <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Margin Stack</p>
+                <p className="text-xs text-[#64748b] mb-4">Gross, operating, and net margins by company</p>
+                <ResponsiveContainer width="100%" height={340}>
+                  <BarChart data={marginData} margin={{ left: -10, right: 10, top: 5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2a3a4e" />
+                    <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={{ stroke: '#2a3a4e' }} tickLine={false} />
+                    <YAxis tickFormatter={v => `${v}%`} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend
+                      wrapperStyle={{ fontSize: 11, color: '#94a3b8' }}
+                      iconType="circle"
+                      iconSize={8}
+                      {...{ payload: [
+                        { value: 'Gross', type: 'circle', color: '#10b981' },
+                        { value: 'Operating', type: 'circle', color: '#3b82f6' },
+                        { value: 'Net', type: 'circle', color: '#f59e0b' },
+                      ] } as Record<string, unknown>}
+                    />
+                    <Bar dataKey="Gross" fill="#10b981" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="Operating" fill="#3b82f6" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="Net" fill="#f59e0b" radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Expert Interpretation — 40% */}
+              <div className="lg:w-[40%] lg:border-l lg:border-[#2a3a4e] lg:pl-6 flex flex-col justify-center">
+                <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-3">Expert Interpretation</p>
+                <p className="text-[13px] text-[#c8d2de] leading-relaxed">{marginInsight}</p>
+              </div>
+            </div>
+          </div>
         </ChartCarousel>
 
-        {/* Margin Comparison Full Width */}
-        <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-5 mb-8">
-          <p className="uppercase tracking-widest text-[10px] font-semibold text-[#f97316] mb-1">Margin Stack</p>
-          <p className="text-xs text-[#64748b] mb-4">Gross, operating, and net margins by company</p>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={marginData} margin={{ left: -10, right: 10, top: 5, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a3a4e" />
-              <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={{ stroke: '#2a3a4e' }} tickLine={false} />
-              <YAxis tickFormatter={v => `${v}%`} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<ChartTooltip />} />
-              <Legend
-                wrapperStyle={{ fontSize: 11, color: '#94a3b8' }}
-                iconType="circle"
-                iconSize={8}
-                {...{ payload: [
-                  { value: 'Gross', type: 'circle', color: '#10b981' },
-                  { value: 'Operating', type: 'circle', color: '#3b82f6' },
-                  { value: 'Net', type: 'circle', color: '#f59e0b' },
-                ] } as Record<string, unknown>}
-              />
-              <Bar dataKey="Gross" fill="#10b981" radius={[2, 2, 0, 0]} />
-              <Bar dataKey="Operating" fill="#3b82f6" radius={[2, 2, 0, 0]} />
-              <Bar dataKey="Net" fill="#f59e0b" radius={[2, 2, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        {/* CTA */}
+        <div className="text-center space-y-3">
+          <Button onClick={handleContinue} size="lg" className="px-10">
+            Step 3: Vote on Strategic Direction
+          </Button>
+          <div>
+            <button
+              onClick={handleBack}
+              className="text-sm text-[#64748b] hover:text-[#f97316] transition-colors"
+            >
+              &larr; Back to Company Analysis
+            </button>
+          </div>
         </div>
 
-        {/* CTA */}
-        <div className="text-center">
-          <Button onClick={handleContinue} size="lg" className="px-10">
-            Begin Strategic Prioritization
-          </Button>
-        </div>
+        {/* Create Session Modal */}
+        {showCreateSession && (
+          <CreateSessionModal onClose={() => setShowCreateSession(false)} />
+        )}
       </div>
     </div>
   );

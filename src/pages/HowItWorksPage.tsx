@@ -130,14 +130,15 @@ export function HowItWorksPage() {
       // Stage 1: Analyze company
       setFetchStage(1);
       const data = await analyzeCompany(symbol);
-      dispatch({ type: 'START_ANALYSIS', companyProfile: data.profile });
+      const highlights = data.highlights ?? [];
+      const revenueSegments = data.revenueSegments ?? [];
+      const competitorProfiles = data.competitorProfiles ?? [];
+      // Persist financial data immediately so BriefingPage can show it even if briefing is still running
+      dispatch({ type: 'START_ANALYSIS', companyProfile: data.profile, highlights, revenueSegments, competitorProfiles });
 
       // Stage 2: Fetch peers + start briefing in parallel
       setFetchStage(2);
       const briefingPromise = generateBriefing(data.promptData);
-      const highlights = data.highlights ?? [];
-      const revenueSegments = data.revenueSegments ?? [];
-      const competitorProfiles = data.competitorProfiles ?? [];
 
       let peers: PeerCompany[] = [];
       try {
@@ -464,11 +465,11 @@ export function HowItWorksPage() {
             disabled={!!fetchError}
             className="px-8 py-3 bg-[#f97316] hover:bg-[#ea580c] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors text-base"
           >
-            {fetchReady ? 'Begin Step 3: Strategic Priorities' : 'Continue'}
+            {fetchReady ? 'Select Competitors' : 'Continue'}
           </button>
           <p className="text-sm text-[#94a3b8] mt-2">
             {fetchReady
-              ? '6 dimensions, ~25 comparisons, ~5 minutes per person'
+              ? 'Choose 3-5 peer companies to benchmark against'
               : 'Analysis is running in the background. You can continue when ready.'}
           </p>
         </div>

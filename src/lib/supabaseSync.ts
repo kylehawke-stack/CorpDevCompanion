@@ -398,6 +398,20 @@ export async function getParticipantCount(sessionId: string): Promise<number> {
 }
 
 /**
+ * Sync user directions to Supabase session row.
+ */
+export async function syncUserDirections(sessionId: string, directions: string[]): Promise<void> {
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from('sessions')
+    .update({ user_directions: directions, updated_at: new Date().toISOString() })
+    .eq('id', sessionId);
+
+  if (error) console.error('syncUserDirections failed:', error);
+}
+
+/**
  * Update session metadata (for syncing step unlocks, user directions, etc.)
  */
 export async function updateSessionField(

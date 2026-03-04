@@ -1,12 +1,6 @@
 import type { Context } from "@netlify/functions";
 import Anthropic from "@anthropic-ai/sdk";
 
-function normalizeBlurb(blurb: string | string[]): string[] {
-  if (Array.isArray(blurb)) return blurb.length > 0 ? blurb : ["No details provided"];
-  const sentences = blurb.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 0);
-  return sentences.length > 0 ? sentences : [blurb];
-}
-
 interface CompanyProfile {
   symbol: string;
   companyName: string;
@@ -200,7 +194,7 @@ Return your analysis first, then valid JSON in this format:
 }`;
 
   try {
-    const message = await client.messages.create({
+    const stream = client.messages.stream({
       model: "claude-sonnet-4-20250514",
       max_tokens: 4000,
       temperature: 0.8,
@@ -208,33 +202,33 @@ Return your analysis first, then valid JSON in this format:
       messages: [{ role: "user", content: taskPrompt }],
     });
 
-    const text =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const event of stream) {
+            if (
+              event.type === "content_block_delta" &&
+              event.delta.type === "text_delta"
+            ) {
+              controller.enqueue(encoder.encode(event.delta.text));
+            }
+          }
+          controller.close();
+        } catch (streamErr) {
+          console.error("generate-ideas stream error:", streamErr);
+          controller.error(streamErr);
+        }
+      },
+    });
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return new Response(
-        JSON.stringify({ error: "Failed to parse AI response" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-
-    const ideas = parsed.ideas.map(
-      (idea: { title: string; tier: string; blurb: string | string[] }) => ({
-        id: crypto.randomUUID(),
-        title: idea.title,
-        tier: idea.tier,
-        blurb: normalizeBlurb(idea.blurb),
-        source: "seed",
-        createdAt: Date.now(),
-      })
-    );
-
-    return new Response(JSON.stringify({ ideas }), {
+    return new Response(readable, {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Accel-Buffering": "no",
+        "Cache-Control": "no-cache",
+      },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

@@ -131,8 +131,30 @@ export async function generateSeedIdeas(
     throw new Error(`Failed to generate ideas: ${detail}`);
   }
 
-  const data = await response.json();
-  return data.ideas as Idea[];
+  // Read streamed text chunks from the function
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+  }
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Failed to parse AI response');
+  const parsed = JSON.parse(jsonMatch[0]);
+
+  return parsed.ideas.map(
+    (idea: { title: string; tier: string; blurb: string | string[] }) => ({
+      id: crypto.randomUUID(),
+      title: idea.title,
+      tier: idea.tier,
+      blurb: normalizeBlurb(idea.blurb),
+      source: "seed",
+      createdAt: Date.now(),
+    })
+  ) as Idea[];
 }
 
 export async function injectIdeas(
@@ -194,8 +216,44 @@ export async function injectIdeas(
     throw new Error(`Failed to inject ideas: ${response.statusText}`);
   }
 
-  const data = await response.json();
-  return data.ideas as Idea[];
+  // Read streamed text chunks
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+  }
+
+  // Check for streamed errors
+  if (text.includes('__ERROR__')) {
+    const errorMsg = text.split('__ERROR__')[1]?.trim() || 'Unknown error';
+    throw new Error(`Failed to inject ideas: ${errorMsg}`);
+  }
+
+  // Use server-processed ideas (after __PROCESSED__ delimiter) which include enrichment + dedup
+  const parts = text.split('__PROCESSED__');
+  if (parts[1]) {
+    const processed = JSON.parse(parts[1].trim());
+    return processed.ideas as Idea[];
+  }
+
+  // Fallback: parse from raw Claude text if no processed data
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Failed to parse AI response');
+  const parsed = JSON.parse(jsonMatch[0]);
+  return parsed.ideas.map(
+    (idea: { title: string; tier: string; blurb: string | string[]; linkedTheme?: string }) => ({
+      id: crypto.randomUUID(),
+      title: idea.title,
+      tier: idea.tier,
+      blurb: normalizeBlurb(idea.blurb),
+      source: "claude_injected",
+      createdAt: Date.now(),
+      linkedTheme: idea.linkedTheme,
+    })
+  ) as Idea[];
 }
 
 export async function generateCompanyIdeas(
@@ -320,11 +378,42 @@ export async function generateNarrative(
     throw new Error(`Failed to generate narrative: ${response.statusText}`);
   }
 
-  const data = await response.json();
-  return {
-    narrative: data.narrative as string,
-    presentationOutline: (data.presentationOutline ?? "") as string,
-  };
+  // Read streamed text chunks
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+  }
+
+  // Split into briefing narrative and presentation outline
+  const outlineSeparator = "---PRESENTATION OUTLINE---";
+  const outlineEnd = "---END PRESENTATION OUTLINE---";
+  let narrative = text;
+  let presentationOutline = "";
+
+  const outlineStart = text.indexOf(outlineSeparator);
+  if (outlineStart !== -1) {
+    narrative = text.slice(0, outlineStart).trim();
+    const outlineEndIdx = text.indexOf(outlineEnd);
+    presentationOutline = outlineEndIdx !== -1
+      ? text.slice(outlineStart + outlineSeparator.length, outlineEndIdx).trim()
+      : text.slice(outlineStart + outlineSeparator.length).trim();
+  }
+
+  // Strip the chain-of-thought analysis (Step 1) from the output
+  const step2Markers = ["**THEMES", "THEMES (", "STEP 2"];
+  for (const marker of step2Markers) {
+    const idx = narrative.indexOf(marker);
+    if (idx !== -1 && idx < 500) {
+      narrative = narrative.slice(idx);
+      break;
+    }
+  }
+
+  return { narrative, presentationOutline };
 }
 
 export async function fetchPeers(symbol: string, sector?: string, industry?: string): Promise<PeerCompany[]> {

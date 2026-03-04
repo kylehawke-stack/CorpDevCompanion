@@ -159,7 +159,7 @@ Tone: Professional, board-ready. Direct and analytical. No hedging or filler. Pl
 Write in flowing paragraphs for the briefing (except research questions as numbered list). Use the structured format above for the presentation outline.`;
 
   try {
-    const message = await client.messages.create({
+    const stream = client.messages.stream({
       model: "claude-sonnet-4-20250514",
       max_tokens: 4000,
       temperature: 0.3,
@@ -167,38 +167,33 @@ Write in flowing paragraphs for the briefing (except research questions as numbe
       messages: [{ role: "user", content: prompt }],
     });
 
-    const text =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const event of stream) {
+            if (
+              event.type === "content_block_delta" &&
+              event.delta.type === "text_delta"
+            ) {
+              controller.enqueue(encoder.encode(event.delta.text));
+            }
+          }
+          controller.close();
+        } catch (streamErr) {
+          console.error("generate-narrative stream error:", streamErr);
+          controller.error(streamErr);
+        }
+      },
+    });
 
-    // Split into briefing narrative and presentation outline
-    const outlineSeparator = "---PRESENTATION OUTLINE---";
-    const outlineEnd = "---END PRESENTATION OUTLINE---";
-    let narrative = text;
-    let presentationOutline = "";
-
-    const outlineStart = text.indexOf(outlineSeparator);
-    if (outlineStart !== -1) {
-      narrative = text.slice(0, outlineStart).trim();
-      const outlineEndIdx = text.indexOf(outlineEnd);
-      presentationOutline = outlineEndIdx !== -1
-        ? text.slice(outlineStart + outlineSeparator.length, outlineEndIdx).trim()
-        : text.slice(outlineStart + outlineSeparator.length).trim();
-    }
-
-    // Strip the chain-of-thought analysis (Step 1) from the output
-    // Look for "STEP 2" or "**THEMES" to find where the actual briefing starts
-    const step2Markers = ["**THEMES", "THEMES (", "STEP 2"];
-    for (const marker of step2Markers) {
-      const idx = narrative.indexOf(marker);
-      if (idx !== -1 && idx < 500) {
-        narrative = narrative.slice(idx);
-        break;
-      }
-    }
-
-    return new Response(JSON.stringify({ narrative, presentationOutline }), {
+    return new Response(readable, {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Accel-Buffering": "no",
+        "Cache-Control": "no-cache",
+      },
     });
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Unknown error";

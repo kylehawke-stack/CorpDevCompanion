@@ -238,16 +238,32 @@ export function BriefingPage() {
                 {[profile?.sector, profile?.industry, profile?.ceo ? `CEO: ${profile.ceo}` : null].filter(Boolean).join(' \u00B7 ')}
               </p>
             </div>
-            {supabase && !state.isCollaborative && state.ideas.length > 0 && (
-              <button
-                onClick={() => setShowCreateSession(true)}
-                className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#f97316]/10 border border-[#f97316]/30 text-[#f97316] hover:bg-[#f97316]/20 hover:border-[#f97316]/50 transition-colors text-sm font-semibold whitespace-nowrap"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Go Live
-              </button>
+            {supabase && state.ideas.length > 0 && (
+              state.isCollaborative && state.shareCode ? (
+                <div className="ml-auto flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-[#64748b] font-mono">
+                    {`${window.location.origin}${window.location.pathname}?s=${state.shareCode}`}
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?s=${state.shareCode}`);
+                    }}
+                    className="px-2 py-1 rounded bg-[#f97316]/20 text-[#f97316] text-xs font-medium hover:bg-[#f97316]/30 transition-colors"
+                  >
+                    Copy
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowCreateSession(true)}
+                  className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#f97316]/10 border border-[#f97316]/30 text-[#f97316] hover:bg-[#f97316]/20 hover:border-[#f97316]/50 transition-colors text-sm font-semibold whitespace-nowrap"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Link / Add Others
+                </button>
+              )
             )}
           </div>
           <div className="flex items-center gap-2 mt-1">
@@ -527,7 +543,7 @@ export function BriefingPage() {
         ) : null}
 
         {/* ── CTA ── */}
-        <div className="text-center pt-2 pb-8">
+        <div className="text-center pt-2 pb-8 space-y-3">
           <Button onClick={handleContinue} size="lg" className="px-10" disabled={state.ideas.length === 0}>
             {state.ideas.length === 0
               ? 'Generating strategic options...'
@@ -539,6 +555,16 @@ export function BriefingPage() {
             <p className="text-xs text-[#64748b] mt-3">
               {state.ideas.length} strategic options ready for pairwise comparison across 6 dimensions
             </p>
+          )}
+          {state.selectedPeers.length > 0 && (
+            <div>
+              <button
+                onClick={() => dispatch({ type: 'SET_PHASE', phase: 'peer_selection' })}
+                className="text-sm text-[#64748b] hover:text-[#f97316] transition-colors"
+              >
+                &larr; Back to Select Competitors
+              </button>
+            </div>
           )}
         </div>
 
