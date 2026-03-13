@@ -10,7 +10,7 @@
   timeout = 26
 
 [functions."generate-briefing"]
-  timeout = 26
+  timeout = 60
 
 [functions."generate-company-ideas"]
   timeout = 60
