@@ -7,7 +7,7 @@
   external_node_modules = ["@anthropic-ai/sdk"]
 
 [functions."analyze-company"]
-  timeout = 26
+  timeout = 60
 
 [functions."generate-briefing"]
   timeout = 60
@@ -16,6 +16,18 @@
   timeout = 60
 
 [functions."generate-seed-ideas"]
+  timeout = 60
+
+[functions."generate-ideas"]
+  timeout = 60
+
+[functions."generate-narrative"]
+  timeout = 60
+
+[functions."inject-ideas"]
+  timeout = 60
+
+[functions."fetch-peer-data"]
   timeout = 60
 
 [dev]
