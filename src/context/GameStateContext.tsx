@@ -154,6 +154,39 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         peerFinancials: action.peerFinancials,
         competitorPromptData: action.competitorPromptData ?? state.competitorPromptData,
       };
+    case 'SET_INSIGHTS': {
+      // Merge AI insight cards (Earnings Call + Analyst) into financialHighlights
+      const insightLabels = new Set(['Earnings Call Insights', 'Analyst Perspectives']);
+      const withoutInsights = state.financialHighlights.filter(h => !insightLabels.has(h.label));
+      return {
+        ...state,
+        financialHighlights: [...withoutInsights, ...action.highlights],
+      };
+    }
+    case 'SET_COMPETITIVE': {
+      // Merge Competitive Positioning cards into financialHighlights
+      const withoutCompetitive = state.financialHighlights.filter(h => h.label !== 'Competitive Positioning');
+      return {
+        ...state,
+        financialHighlights: [...withoutCompetitive, ...action.highlights],
+      };
+    }
+    case 'SET_IDEAS_ONLY': {
+      return {
+        ...state,
+        ideas: action.ideas,
+        voterId: state.voterId || crypto.randomUUID(),
+        votes: [],
+        totalVoteCount: 0,
+        lastInjectionAtVoteCount: 0,
+        step1VoteCount: 0,
+        step2VoteCount: 0,
+        step3VoteCount: 0,
+        step2Unlocked: false,
+        step3Unlocked: false,
+        userDirections: [],
+      };
+    }
     case 'RESET_SESSION':
       clearState();
       return { ...initialState };

@@ -108,6 +108,133 @@ export async function generateBriefing(promptData: string, competitorPromptData?
   return { highlights, ideas };
 }
 
+/** Fetch corrections for a symbol (shared helper for split briefing calls) */
+async function getCorrectionsText(promptData: string): Promise<string> {
+  const symbolMatch = promptData.match(/\(([A-Z]{1,6})\)/);
+  const symbol = symbolMatch?.[1];
+  if (!symbol) return '';
+  try {
+    const correctionsList = await fetchCorrections(symbol);
+    return formatCorrectionsForPrompt(correctionsList);
+  } catch { return ''; }
+}
+
+/** Read a streamed response body into a string */
+async function readStream(response: Response): Promise<string> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+  }
+  return text;
+}
+
+/** Split call 1: Earnings Call Insights + Analyst Perspectives */
+export async function generateInsights(promptData: string): Promise<{
+  highlights: FinancialHighlight[];
+}> {
+  const corrections = await getCorrectionsText(promptData);
+
+  const response = await fetch(`${BASE_URL}/generate-insights`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ promptData, corrections }),
+  });
+
+  if (!response.ok) {
+    let detail = response.statusText;
+    try { const body = await response.json(); if (body.error) detail = body.error; } catch {}
+    throw new Error(`Failed to generate insights: ${detail}`);
+  }
+
+  const text = await readStream(response);
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Failed to parse insights response');
+  const parsed = JSON.parse(jsonMatch[0]);
+
+  return {
+    highlights: Array.isArray(parsed.highlights)
+      ? parsed.highlights.map((h: { label: string; value: string; detail: string; observation: string }) => ({
+          label: h.label, value: h.value, detail: h.detail, observation: h.observation,
+        }))
+      : [],
+  };
+}
+
+/** Split call 2: Competitive Positioning cards (requires peer data) */
+export async function generateCompetitive(promptData: string, competitorPromptData: string): Promise<{
+  highlights: FinancialHighlight[];
+}> {
+  const corrections = await getCorrectionsText(promptData);
+
+  const response = await fetch(`${BASE_URL}/generate-competitive`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ promptData, competitorPromptData, corrections }),
+  });
+
+  if (!response.ok) {
+    let detail = response.statusText;
+    try { const body = await response.json(); if (body.error) detail = body.error; } catch {}
+    throw new Error(`Failed to generate competitive analysis: ${detail}`);
+  }
+
+  const text = await readStream(response);
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Failed to parse competitive response');
+  const parsed = JSON.parse(jsonMatch[0]);
+
+  return {
+    highlights: Array.isArray(parsed.highlights)
+      ? parsed.highlights.map((h: { label: string; value: string; detail: string; observation: string }) => ({
+          label: h.label, value: h.value, detail: h.detail, observation: h.observation,
+        }))
+      : [],
+  };
+}
+
+/** Split call 3: Strategic framework ideas for pairwise voting */
+export async function generateStrategicIdeas(promptData: string): Promise<{
+  ideas: Idea[];
+}> {
+  const corrections = await getCorrectionsText(promptData);
+
+  const response = await fetch(`${BASE_URL}/generate-strategic-ideas`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ promptData, corrections }),
+  });
+
+  if (!response.ok) {
+    let detail = response.statusText;
+    try { const body = await response.json(); if (body.error) detail = body.error; } catch {}
+    throw new Error(`Failed to generate strategic ideas: ${detail}`);
+  }
+
+  const text = await readStream(response);
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Failed to parse strategic ideas response');
+  const parsed = JSON.parse(jsonMatch[0]);
+
+  return {
+    ideas: parsed.ideas.map(
+      (idea: { title: string; blurb: string | string[]; dimension?: string; dimensionIndex?: number }) => ({
+        id: crypto.randomUUID(),
+        title: idea.title,
+        tier: "strategic_priority",
+        blurb: normalizeBlurb(idea.blurb),
+        source: "seed",
+        createdAt: Date.now(),
+        dimension: idea.dimension,
+        dimensionIndex: idea.dimensionIndex,
+      })
+    ),
+  };
+}
+
 export async function generateSeedIdeas(
   companyProfile: CompanyProfile,
   topStrategicPriorities: { title: string; score: number; rank: number }[],

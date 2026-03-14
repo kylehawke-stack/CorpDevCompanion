@@ -3,7 +3,6 @@ import Anthropic from "@anthropic-ai/sdk";
 
 interface RequestBody {
   promptData: string;
-  competitorPromptData?: string;
   corrections?: string;
 }
 
@@ -17,7 +16,7 @@ export default async function handler(req: Request, _context: Context) {
   }
 
   const body: RequestBody = await req.json();
-  const { promptData, competitorPromptData, corrections } = body;
+  const { promptData, corrections } = body;
 
   if (!promptData) {
     return new Response(JSON.stringify({ error: "Missing promptData" }), {
@@ -28,96 +27,45 @@ export default async function handler(req: Request, _context: Context) {
 
   const client = new Anthropic({ apiKey, baseURL: "https://api.anthropic.com" });
 
-  // System message: persona + financial context (cached for reuse across subsequent calls)
-  // Append corrections to promptData if available (so they get cached together)
+  // Strip earnings transcripts and news — strategic ideas only need financial data
+  const sectionsToStrip = ['EARNINGS CALL TRANSCRIPTS', 'NEWS & PRESS RELEASES', 'SEC FILINGS'];
+  let slimPromptData = promptData;
+  for (const section of sectionsToStrip) {
+    const idx = slimPromptData.indexOf(`\n${section}`);
+    if (idx > 0) {
+      // Find next section or end of string
+      const nextSectionIdx = slimPromptData.indexOf('\n\n', idx + section.length + 10);
+      if (nextSectionIdx > idx) {
+        // Check if this is followed by another section (has a header pattern)
+        const remainder = slimPromptData.slice(nextSectionIdx + 2);
+        if (/^[A-Z][A-Z &]+:/.test(remainder)) {
+          slimPromptData = slimPromptData.slice(0, idx) + slimPromptData.slice(nextSectionIdx);
+          continue;
+        }
+      }
+      // Last section — just truncate
+      slimPromptData = slimPromptData.slice(0, idx).trim();
+    }
+  }
+
   const promptDataWithCorrections = corrections
-    ? `${promptData}\n${corrections}`
-    : promptData;
+    ? `${slimPromptData}\n${corrections}`
+    : slimPromptData;
 
   const systemMessages: Anthropic.Messages.TextBlockParam[] = [
     {
       type: "text" as const,
-      text: "You are a senior M&A strategist providing analysis for a corporate development team.",
+      text: "You are a senior M&A strategist providing strategic framework options for a corporate development team.",
     },
     {
       type: "text" as const,
       text: promptDataWithCorrections,
       // @ts-expect-error — cache_control is supported by the API but not fully typed in all SDK versions
-      cache_control: competitorPromptData ? undefined : { type: "ephemeral" },
+      cache_control: { type: "ephemeral" },
     },
   ];
 
-  // Block 3: Competitor financial profiles (cached)
-  if (competitorPromptData) {
-    systemMessages.push({
-      type: "text" as const,
-      text: competitorPromptData,
-      // @ts-expect-error — cache_control is supported by the API but not fully typed in all SDK versions
-      cache_control: { type: "ephemeral" },
-    });
-  }
-
-  const taskPrompt = `You have two tasks based on the financial data provided above:
-
-TASK 1: Generate 9-30 qualitative insight cards from earnings calls, analyst data, and competitive landscape.
-TASK 2: Generate 18-30 strategic framework options for pairwise voting (3-5 per dimension, ordered conservative to aggressive).
-
-═══ TASK 1: QUALITATIVE INSIGHT CARDS ═══
-
-Cards 1-6 (Revenue, Profitability, Cash Flow, Firepower, Leverage, Acquisitiveness) are already computed from structured data — do NOT generate those.
-
-Generate 3 CATEGORIES of insight cards. Two categories contain MULTIPLE individual cards; one is a single card.
-
-CATEGORY 1: "Earnings Call Insights" — Generate 5-10 individual cards, each with label: "Earnings Call Insights". Aim for the UPPER end of this range. Generate fewer cards ONLY if the earnings transcripts lack sufficient distinct themes.
-Each card focuses on a DIFFERENT theme from earnings calls. Possible themes (only generate where there's real substance — skip thin themes):
-- Management priorities & strategic vision
-- Growth initiatives & new products
-- Margin commentary & cost management
-- Capital allocation & M&A signals
-- Supply chain & operations
-- Competitive dynamics & market share
-- Channel strategy (DTC, retail, international)
-- Analyst Q&A tensions & pushback
-- Guidance & forward outlook
-Each card MUST include a direct attributed quote, e.g., 'As CEO Scott Tidey noted: "quote here"'. Prefer quotes from the Q&A section over prepared remarks. Each card should cover a DISTINCT theme — no overlap.
-
-CATEGORY 2: "Analyst Perspectives" — Generate 4-10 individual cards, each with label: "Analyst Perspectives". Aim for the UPPER end of this range. Generate fewer cards ONLY if there is insufficient analyst coverage or Q&A content.
-Each card focuses on a DIFFERENT analyst concern or thesis. Possible themes (only generate where there's real substance):
-- Revenue outlook & growth expectations
-- Margin trajectory & profitability concerns
-- Competitive threats & market positioning
-- M&A expectations & capital deployment
-- Valuation & price target rationale
-- Sector headwinds & macro risks
-Each card MUST include a direct attributed quote FROM THE ANALYST THEMSELVES — quote the analyst's question or comment, NEVER management's response. Format: 'Analyst Adam Bradley asked: "quote here"'. If no formal analyst coverage exists, use analyst questions from the earnings call Q&A. NEVER attribute a quote to "Management" in an Analyst Perspectives card. Each card should cover a DISTINCT concern — no overlap.
-
-CATEGORY 3: "Competitive Positioning" — Generate 3-10 individual cards, each with label: "Competitive Positioning".
-Each card focuses on a DIFFERENT competitive dimension. Possible themes (only generate where there's real substance):
-- Head-to-head vs. key competitor (name them — one card per major competitor)
-- Product/category gaps vs. the competitive set
-- Distribution & channel advantages/disadvantages
-- Pricing power & brand perception relative to peers
-- Geographic coverage gaps
-- M&A opportunities to strengthen competitive position
-Reference specific competitors by name from the competitive landscape data.
-CRITICAL: Never list the company's own subsidiaries or owned brands as competitors. Check the company profile description for owned brands before referencing any company as a competitor.
-
-Each card has:
-- "label": the category name (use EXACTLY "Earnings Call Insights", "Analyst Perspectives", or "Competitive Positioning")
-- "value": a punchy headline (e.g., "Cautiously Bullish", "DTC Push + Margin Focus", "Strong in Kitchen, Weak in Smart Home")
-- "detail": supporting context in 5-10 words
-- "observation": your strategic interpretation — 2-3 sentences, specific and actionable. MUST include a real attributed quote for Earnings Call Insights and Analyst Perspectives cards.
-
-QUOTE RULES (critical):
-- Every quote MUST be complete — NEVER truncate mid-sentence with "..." or trail off
-- If a quote is too long, pick a shorter self-contained excerpt from the same speaker
-- Attribute every quote: 'As CEO [Name] noted: "complete quote here"'
-- If you cannot find a complete, meaningful quote, paraphrase instead of truncating
-- Prefer concise 1-2 sentence quotes that capture the key insight
-
-═══ TASK 2: STRATEGIC FRAMEWORK OPTIONS ═══
-
-Generate 3-5 options per dimension across these 6 DIMENSIONS. Within each dimension, ORDER options from most conservative (dimensionIndex=0) to most aggressive (highest dimensionIndex). The team will vote on which approaches they prefer.
+  const taskPrompt = `Based on the financial data above, generate 3-5 strategic framework options per dimension across 6 DIMENSIONS. Within each dimension, ORDER options from most conservative (dimensionIndex=0) to most aggressive (highest dimensionIndex). The team will vote on which approaches they prefer.
 
 These dimensions are informed by M&A best practices from McKinsey (programmatic M&A), Bain (scope vs. scale deals, outside-in targeting), Accenture (deal archetypes), Deloitte (deal structure alternatives), and BCG (string-of-pearls vs. big-bang). Use plain, direct language — no consulting jargon.
 
@@ -176,38 +124,6 @@ Each idea MUST include:
 
 Return ONLY valid JSON:
 {
-  "highlights": [
-    {
-      "label": "Earnings Call Insights",
-      "value": "DTC Push + Margin Focus",
-      "detail": "4 quarters of consistent messaging",
-      "observation": "Management is laser-focused on direct-to-consumer..."
-    },
-    {
-      "label": "Earnings Call Insights",
-      "value": "Supply Chain Reshoring",
-      "detail": "Shifting away from China sourcing",
-      "observation": "A recurring theme across calls was the move to diversify..."
-    },
-    {
-      "label": "Analyst Perspectives",
-      "value": "Cautiously Bullish",
-      "detail": "Price targets rising modestly",
-      "observation": "Analysts are warming to the margin story..."
-    },
-    {
-      "label": "Analyst Perspectives",
-      "value": "M&A Expectations Building",
-      "detail": "Balance sheet capacity highlighted",
-      "observation": "Several analysts probed management on acquisition plans..."
-    },
-    {
-      "label": "Competitive Positioning",
-      "value": "Strong in Kitchen, Weak in Smart Home",
-      "detail": "Clear gaps vs. key competitors",
-      "observation": "Compared to SharkNinja and Spectrum Brands..."
-    }
-  ],
   "ideas": [
     {
       "title": "Short Label",
@@ -221,7 +137,7 @@ Return ONLY valid JSON:
   try {
     const stream = client.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 8000,
+      max_tokens: 4000,
       temperature: 0.7,
       system: systemMessages,
       messages: [{ role: "user", content: taskPrompt }],
@@ -241,7 +157,7 @@ Return ONLY valid JSON:
           }
           controller.close();
         } catch (streamErr) {
-          console.error("generate-briefing stream error:", streamErr);
+          console.error("generate-strategic-ideas stream error:", streamErr);
           controller.error(streamErr);
         }
       },
@@ -257,7 +173,7 @@ Return ONLY valid JSON:
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : "Unknown error";
-    console.error("generate-briefing error:", errMsg);
+    console.error("generate-strategic-ideas error:", errMsg);
     return new Response(JSON.stringify({ error: errMsg }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

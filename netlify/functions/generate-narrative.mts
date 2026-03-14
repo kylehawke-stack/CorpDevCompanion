@@ -160,7 +160,7 @@ Write in flowing paragraphs for the briefing (except research questions as numbe
 
   try {
     const stream = client.messages.stream({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 4000,
       temperature: 0.3,
       system: systemBlocks,

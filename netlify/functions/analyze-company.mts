@@ -662,18 +662,20 @@ ${materialNews.slice(0, 30).map((n: any) => {
 
     // Source 2: News headlines — broad scan for acquisition-related activity
     if (Array.isArray(stockNewsData) && stockNewsData.length > 0) {
-      const acqKeywords = /acqui|merger|merg(?:ing|ed)|purchase[ds]?\s+(?:of|the)|(?:buys?|bought)\s+[A-Z]/i;
+      const acqKeywords = /acqui|merger|merg(?:ing|ed)|purchase[ds]?\s+(?:of|the)/i;
       for (const n of stockNewsData) {
         const title = n.title || '';
         const text = n.text || '';
         const combined = `${title} ${text.slice(0, 200)}`;
         if (!acqKeywords.test(combined)) continue;
+        // Skip stock screener / analyst articles that aren't about actual deals
+        if (/dividend|all-stars|downgrade|upgrade|rating|buy rating|price target|stock pick/i.test(title)) continue;
         const date = (n.publishedDate || n.date || '').split(' ')[0];
 
         // Try multiple extraction patterns on the title
         const patterns = [
           // "acquires Health Beacon" / "acquisition of Health Beacon"
-          /(?:acquir(?:es?|ed|ing)|acquisition of|purchase[ds]?|buys?|bought|merger with|completes?\s+(?:the\s+)?(?:acquisition|purchase)\s+of)\s+([A-Z][A-Za-z][\w\s&.'',-]{1,50}?)(?:\s*[,.(]|\s+for\s+|\s+in\s+|\s+to\s+|$)/i,
+          /(?:acquir(?:es?|ed|ing)|acquisition of|purchase[ds]?\s+(?:of|the)|merger with|completes?\s+(?:the\s+)?(?:acquisition|purchase)\s+of)\s+([A-Z][A-Za-z][\w\s&.'',-]{1,50}?)(?:\s*[,.(]|\s+for\s+|\s+in\s+|\s+to\s+|$)/i,
           // "Health Beacon acquisition" (target before the keyword)
           /([A-Z][A-Za-z][\w\s&.'',-]{1,40}?)\s+acquisition\b/i,
         ];

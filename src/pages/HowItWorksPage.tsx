@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
-import { analyzeCompany, generateBriefing, fetchPeers } from '../lib/api.ts';
+import { analyzeCompany, generateInsights, generateStrategicIdeas, fetchPeers } from '../lib/api.ts';
 import type { PeerCompany } from '../types/index.ts';
 import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
 
@@ -44,8 +44,7 @@ const ZONES = [
         voteInfo: 'Decide how you want to use M&A',
         description:
           'Your team votes on 6 strategic dimensions using quick pairwise comparisons \u2014 growth objective, target profile, risk posture, integration approach, capability priority, and strategic proximity. Each vote is simply choosing between two options.',
-        outputs: ['Force-ranked strategic priorities', 'Positioning on each spectrum', 'Team consensus baseline'],
-        flowNote: 'Your strategic priorities inform Step 4.',
+        outputs: ['Force-ranked strategic priorities', 'Positioning on each spectrum'],
       },
       {
         num: 4,
@@ -55,7 +54,6 @@ const ZONES = [
         description:
           'Based on your strategic priorities, Corp Dev Companion generates relevant market segments and product categories. Your team compares pairs to identify the most promising areas for acquisition. New adjacencies are injected real-time based on your voting.',
         outputs: ['Ranked market segments', 'Ranked product categories', 'Refined search parameters'],
-        flowNote: 'Your top segments and categories feed into Step 5.',
       },
       {
         num: 5,
@@ -65,7 +63,6 @@ const ZONES = [
         description:
           'From your top segments and categories, Corp Dev Companion identifies specific acquisition targets. Your team compares companies head-to-head to build a ranked shortlist grounded in both strategic alignment and team consensus.',
         outputs: ['Ranked target companies', 'Head-to-head comparison data', 'Consensus-driven shortlist'],
-        flowNote: 'Your ranked targets are aligned with the team prior to outreach.',
       },
     ],
   },
@@ -136,9 +133,30 @@ export function HowItWorksPage() {
       // Persist financial data immediately so BriefingPage can show it even if briefing is still running
       dispatch({ type: 'START_ANALYSIS', companyProfile: data.profile, highlights, revenueSegments, competitorProfiles });
 
-      // Stage 2: Fetch peers + start briefing in parallel
+      // Stage 2: Fire insights + ideas + peer fetch in parallel
       setFetchStage(2);
-      const briefingPromise = generateBriefing(data.promptData);
+
+      // Call 1: Earnings Call Insights + Analyst Perspectives (heaviest — starts first)
+      const insightsPromise = generateInsights(data.promptData)
+        .then(({ highlights: insightCards }) => {
+          dispatch({ type: 'SET_INSIGHTS', highlights: insightCards });
+        })
+        .catch((err) => {
+          console.error('Insights generation failed:', err);
+        });
+
+      // Call 3: Strategic framework ideas (independent of peers)
+      const ideasPromise = generateStrategicIdeas(data.promptData)
+        .then(({ ideas }) => {
+          dispatch({ type: 'SET_IDEAS_ONLY', ideas });
+        });
+
+      // Track ideas promise so downstream pages can check readiness
+      const trackedIdeas = ideasPromise.then(() => ({
+        highlights: [] as import('../types/index.ts').FinancialHighlight[],
+        ideas: [] as import('../types/index.ts').Idea[],
+      }));
+      setBriefingPromise(trackedIdeas);
 
       let peers: PeerCompany[] = [];
       try {
@@ -149,30 +167,15 @@ export function HowItWorksPage() {
 
       setFetchStage(3);
 
-      // Store the briefing promise so downstream pages can await it
-      const trackedBriefing = briefingPromise.then((briefing) => {
-        const allHighlights = [...highlights, ...(briefing.highlights ?? [])];
-        dispatch({
-          type: 'SET_STRATEGIC_IDEAS',
-          ideas: briefing.ideas,
-          highlights: allHighlights,
-          revenueSegments,
-          competitorProfiles,
-          promptData: data.promptData,
-        });
-        return briefing;
-      });
-      setBriefingPromise(trackedBriefing);
-
       if (peers.length > 0) {
         dispatch({ type: 'SET_AVAILABLE_PEERS', peers, promptData: data.promptData });
-        // Briefing resolves in background via trackedBriefing — no need to await here
-        trackedBriefing.catch((err) => {
-          console.error('Background briefing generation failed:', err);
+        // Insights + ideas resolve in background
+        ideasPromise.catch((err) => {
+          console.error('Background ideas generation failed:', err);
         });
       } else {
-        // No peers — wait for briefing before proceeding
-        await trackedBriefing;
+        // No peers — wait for ideas before allowing navigation
+        await Promise.all([insightsPromise, ideasPromise]).catch(() => {});
       }
 
       setFetchStage(4);

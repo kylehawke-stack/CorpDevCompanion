@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
-import { generateBriefing } from '../lib/api.ts';
+import { generateInsights, generateStrategicIdeas } from '../lib/api.ts';
 import { Button } from '../components/ui/Button.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import { CreateSessionModal } from '../components/session/CreateSessionModal.tsx';
@@ -157,21 +157,39 @@ export function BriefingPage() {
   const [flaggedCards, setFlaggedCards] = useState<Set<string>>(new Set());
   const [correctionToast, setCorrectionToast] = useState(false);
 
-  // Auto-retry briefing generation if we land here with no ideas but have promptData
+  // Auto-retry missing pieces if we land here without insights or ideas
   useEffect(() => {
-    if (state.ideas.length > 0 || !state.promptData || retryAttempted.current || retrying) return;
+    if (!state.promptData || retryAttempted.current || retrying) return;
+    const hasInsights = highlights.some(h => h.label === 'Earnings Call Insights' || h.label === 'Analyst Perspectives');
+    const hasIdeas = state.ideas.length > 0;
+    if (hasInsights && hasIdeas) return;
+
     retryAttempted.current = true;
     setRetrying(true);
-    generateBriefing(state.promptData).then((briefing) => {
-      const allHighlights = [...state.financialHighlights, ...(briefing.highlights ?? [])];
-      dispatch({ type: 'SET_STRATEGIC_IDEAS', ideas: briefing.ideas, highlights: allHighlights, revenueSegments: state.revenueSegments, competitorProfiles: state.competitorProfiles, promptData: state.promptData });
-      setRetrying(false);
-    }).catch((err) => {
-      console.error('Briefing retry failed:', err);
-      setBriefingError('Failed to generate analysis. Please refresh and try again.');
-      setRetrying(false);
-    });
-  }, [state.ideas.length, state.promptData, retrying, dispatch, state.financialHighlights, state.revenueSegments, state.competitorProfiles]);
+
+    const retries: Promise<void>[] = [];
+    if (!hasInsights) {
+      retries.push(
+        generateInsights(state.promptData!).then(({ highlights: cards }) => {
+          dispatch({ type: 'SET_INSIGHTS', highlights: cards });
+        })
+      );
+    }
+    if (!hasIdeas) {
+      retries.push(
+        generateStrategicIdeas(state.promptData!).then(({ ideas }) => {
+          dispatch({ type: 'SET_IDEAS_ONLY', ideas });
+        })
+      );
+    }
+
+    Promise.all(retries)
+      .catch((err) => {
+        console.error('Briefing retry failed:', err);
+        setBriefingError('Failed to generate analysis. Please refresh and try again.');
+      })
+      .finally(() => setRetrying(false));
+  }, [state.ideas.length, state.promptData, retrying, dispatch, highlights]);
 
   const handleContinue = () => {
     const nextPhase = hasPeerData ? 'peer_benchmarking' : 'voting_step1';
@@ -365,11 +383,33 @@ export function BriefingPage() {
         )}
 
         {/* ── Pullquote Carousels (Earnings Call + Analyst + Competitive) ── */}
-        {pullquoteHighlights.length > 0 ? (
-          <div className="space-y-5 mb-10">
-            {(BRIEFING_CARD_GROUPS.pullquoteLabels as readonly string[]).map((label) => {
-              const cards = pullquoteHighlights.filter(h => h.label === label);
-              if (cards.length === 0) return null;
+        {(() => {
+          const hasInsightsCards = pullquoteHighlights.some(h => h.label === 'Earnings Call Insights' || h.label === 'Analyst Perspectives');
+          const hasCompetitiveCards = pullquoteHighlights.some(h => h.label === 'Competitive Positioning');
+          const showInsightsSpinner = !hasInsightsCards && state.promptData;
+          const showCompetitiveSpinner = !hasCompetitiveCards && state.selectedPeers.length > 0;
+
+          return (hasInsightsCards || hasCompetitiveCards || showInsightsSpinner || showCompetitiveSpinner) ? (
+            <div className="space-y-5 mb-10">
+              {/* Insights loading spinner */}
+              {showInsightsSpinner && (
+                <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-8 text-center">
+                  <Spinner size="md" />
+                  <p className="text-sm text-[#e2e8f0] mt-3">Analyzing earnings calls & analyst coverage...</p>
+                </div>
+              )}
+              {/* Competitive loading spinner */}
+              {showCompetitiveSpinner && !showInsightsSpinner && (
+                <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-6 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <Spinner size="sm" />
+                    <p className="text-sm text-[#94a3b8]">Analyzing competitive landscape...</p>
+                  </div>
+                </div>
+              )}
+              {(BRIEFING_CARD_GROUPS.pullquoteLabels as readonly string[]).map((label) => {
+                const cards = pullquoteHighlights.filter(h => h.label === label);
+                if (cards.length === 0) return null;
               const idx = carouselIndexes[label] ?? 0;
               const h = cards[idx];
               // Only extract quotes for Earnings Call and Analyst cards — not Competitive Positioning
@@ -522,25 +562,19 @@ export function BriefingPage() {
                 </div>
               );
             })}
-          </div>
-        ) : state.ideas.length === 0 ? (
+            </div>
+          ) : null;
+        })()}
+
+        {/* Error state */}
+        {briefingError && (
           <div className="bg-[#1a2332] border border-[#2a3a4e] rounded-xl p-8 mb-10 text-center">
-            {briefingError ? (
-              <>
-                <p className="text-sm text-red-400 mt-3">{briefingError}</p>
-                <Button onClick={() => window.location.reload()} size="sm" className="mt-4">
-                  Refresh Page
-                </Button>
-              </>
-            ) : (
-              <>
-                <Spinner size="lg" />
-                <p className="text-sm text-[#e2e8f0] mt-3">Generating strategic analysis...</p>
-                <p className="text-xs text-[#64748b] mt-1">Synthesizing earnings calls, analyst data, and competitive landscape</p>
-              </>
-            )}
+            <p className="text-sm text-red-400 mt-3">{briefingError}</p>
+            <Button onClick={() => window.location.reload()} size="sm" className="mt-4">
+              Refresh Page
+            </Button>
           </div>
-        ) : null}
+        )}
 
         {/* ── CTA ── */}
         <div className="text-center pt-2 pb-8 space-y-3">

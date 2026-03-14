@@ -304,6 +304,9 @@ export type GameAction =
   | { type: 'SET_AVAILABLE_PEERS'; peers: PeerCompany[]; promptData: string }
   | { type: 'SELECT_PEERS'; symbols: string[] }
   | { type: 'SET_PEER_FINANCIALS'; peerFinancials: PeerFinancials[]; competitorPromptData?: string }
+  | { type: 'SET_INSIGHTS'; highlights: FinancialHighlight[] }
+  | { type: 'SET_COMPETITIVE'; highlights: FinancialHighlight[] }
+  | { type: 'SET_IDEAS_ONLY'; ideas: Idea[] }
   | { type: 'RESET_SESSION' }
   // Multi-user collaborative actions
   | { type: 'SET_SESSION_INFO'; sessionId: string; shareCode: string; adminVoterId: string; isCollaborative: boolean }

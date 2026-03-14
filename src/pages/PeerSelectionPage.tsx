@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
-import { fetchPeerData, searchCompany, type CompanySearchResult } from '../lib/api.ts';
+import { fetchPeerData, generateCompetitive, searchCompany, type CompanySearchResult } from '../lib/api.ts';
 import { Button } from '../components/ui/Button.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import { fetchCrowdPeers, recordPeerSelections, mergePeerLists, type CrowdPeer } from '../lib/crowdPeers.ts';
@@ -122,11 +122,22 @@ export function PeerSelectionPage() {
       recordPeerSelections(targetSymbol, selectedPeerData);
     }
 
-    // Fire-and-forget: fetch peer financial data in background
+    // Fire-and-forget: fetch peer financial data, then generate competitive analysis
     const allSymbols = [state.companyProfile!.symbol, ...symbols];
+    const promptData = state.promptData;
     fetchPeerData(allSymbols)
       .then(({ peerFinancials, competitorPromptData }) => {
         dispatch({ type: 'SET_PEER_FINANCIALS', peerFinancials, competitorPromptData });
+        // Call 2: Competitive Positioning cards (needs peer financial profiles)
+        if (competitorPromptData && promptData) {
+          generateCompetitive(promptData, competitorPromptData)
+            .then(({ highlights }) => {
+              dispatch({ type: 'SET_COMPETITIVE', highlights });
+            })
+            .catch((err) => {
+              console.error('Competitive analysis failed:', err);
+            });
+        }
       })
       .catch((err) => {
         console.error('Background peer data fetch failed:', err);

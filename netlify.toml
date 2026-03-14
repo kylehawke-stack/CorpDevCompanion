@@ -12,6 +12,15 @@
 [functions."generate-briefing"]
   timeout = 60
 
+[functions."generate-insights"]
+  timeout = 60
+
+[functions."generate-competitive"]
+  timeout = 60
+
+[functions."generate-strategic-ideas"]
+  timeout = 60
+
 [functions."generate-company-ideas"]
   timeout = 60
 

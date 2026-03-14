@@ -274,7 +274,7 @@ Write your analysis first, then provide valid JSON:
   try {
     console.log("[generate-company-ideas] Starting Claude API call...");
     const stream = client.messages.stream({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 10000,
       temperature: 0.8,
       system: systemBlocks,
