@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
 import { fetchPeerData, generateCompetitive, searchCompany, type CompanySearchResult } from '../lib/api.ts';
+import { getCachedCompetitive, cacheCompetitive } from '../lib/briefingCache.ts';
 import { Button } from '../components/ui/Button.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import { fetchCrowdPeers, recordPeerSelections, mergePeerLists, type CrowdPeer } from '../lib/crowdPeers.ts';
@@ -128,15 +129,24 @@ export function PeerSelectionPage() {
     fetchPeerData(allSymbols)
       .then(({ peerFinancials, competitorPromptData }) => {
         dispatch({ type: 'SET_PEER_FINANCIALS', peerFinancials, competitorPromptData });
-        // Call 2: Competitive Positioning cards (needs peer financial profiles)
+        // Call 2: Competitive Positioning cards (check cache first)
         if (competitorPromptData && promptData) {
-          generateCompetitive(promptData, competitorPromptData)
-            .then(({ highlights }) => {
-              dispatch({ type: 'SET_COMPETITIVE', highlights });
-            })
-            .catch((err) => {
-              console.error('Competitive analysis failed:', err);
-            });
+          const targetSymbol = state.companyProfile?.symbol;
+          (async () => {
+            if (targetSymbol) {
+              const cached = await getCachedCompetitive(targetSymbol, symbols);
+              if (cached && cached.length > 0) {
+                console.log('[cache hit] competitive for', targetSymbol);
+                dispatch({ type: 'SET_COMPETITIVE', highlights: cached });
+                return;
+              }
+            }
+            const { highlights } = await generateCompetitive(promptData, competitorPromptData);
+            dispatch({ type: 'SET_COMPETITIVE', highlights });
+            if (targetSymbol) cacheCompetitive(targetSymbol, symbols, highlights);
+          })().catch((err) => {
+            console.error('Competitive analysis failed:', err);
+          });
         }
       })
       .catch((err) => {

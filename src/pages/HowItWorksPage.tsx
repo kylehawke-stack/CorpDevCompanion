@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
 import { analyzeCompany, generateInsights, generateStrategicIdeas, fetchPeers } from '../lib/api.ts';
+import { getCachedInsights, getCachedStrategicIdeas, cacheInsights, cacheStrategicIdeas } from '../lib/briefingCache.ts';
 import type { PeerCompany } from '../types/index.ts';
 import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
 
@@ -134,22 +135,36 @@ export function HowItWorksPage() {
       dispatch({ type: 'START_ANALYSIS', companyProfile: data.profile, highlights, revenueSegments, competitorProfiles });
 
       // Stage 2: Fire insights + ideas + peer fetch in parallel
+      // Check Supabase cache first — skip Claude calls if cached
       setFetchStage(2);
 
-      // Call 1: Earnings Call Insights + Analyst Perspectives (heaviest — starts first)
-      const insightsPromise = generateInsights(data.promptData)
-        .then(({ highlights: insightCards }) => {
-          dispatch({ type: 'SET_INSIGHTS', highlights: insightCards });
-        })
-        .catch((err) => {
-          console.error('Insights generation failed:', err);
-        });
+      // Call 1: Earnings Call Insights + Analyst Perspectives
+      const insightsPromise = (async () => {
+        const cached = await getCachedInsights(symbol);
+        if (cached && cached.length > 0) {
+          console.log('[cache hit] insights for', symbol);
+          dispatch({ type: 'SET_INSIGHTS', highlights: cached });
+          return;
+        }
+        const { highlights: insightCards } = await generateInsights(data.promptData);
+        dispatch({ type: 'SET_INSIGHTS', highlights: insightCards });
+        cacheInsights(symbol, insightCards);
+      })().catch((err) => {
+        console.error('Insights generation failed:', err);
+      });
 
       // Call 3: Strategic framework ideas (independent of peers)
-      const ideasPromise = generateStrategicIdeas(data.promptData)
-        .then(({ ideas }) => {
-          dispatch({ type: 'SET_IDEAS_ONLY', ideas });
-        });
+      const ideasPromise = (async () => {
+        const cached = await getCachedStrategicIdeas(symbol);
+        if (cached && cached.length > 0) {
+          console.log('[cache hit] strategic ideas for', symbol);
+          dispatch({ type: 'SET_IDEAS_ONLY', ideas: cached });
+          return;
+        }
+        const { ideas } = await generateStrategicIdeas(data.promptData);
+        dispatch({ type: 'SET_IDEAS_ONLY', ideas });
+        cacheStrategicIdeas(symbol, ideas);
+      })();
 
       // Track ideas promise so downstream pages can check readiness
       const trackedIdeas = ideasPromise.then(() => ({

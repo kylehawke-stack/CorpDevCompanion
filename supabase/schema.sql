@@ -2,6 +2,26 @@
 -- Run this against your Supabase project's SQL editor
 
 -- ============================================================
+-- BRIEFING CACHE
+-- Stores AI-generated insight cards and strategic ideas so they
+-- don't need to be regenerated every session. Keyed by company
+-- symbol + card type + peer set. Expires after ~30 days.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS briefing_cache (
+  symbol TEXT NOT NULL,
+  card_type TEXT NOT NULL CHECK (card_type IN ('insights', 'competitive', 'strategic_ideas')),
+  peer_key TEXT NOT NULL DEFAULT '',
+  data JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (symbol, card_type, peer_key)
+);
+
+-- Allow public read/write (anon key) — this is non-sensitive cached data
+ALTER TABLE briefing_cache ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "briefing_cache_public" ON briefing_cache FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================================
 -- TABLES
 -- ============================================================
 
