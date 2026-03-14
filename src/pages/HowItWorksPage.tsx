@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameState } from '../context/GameStateContext.tsx';
 import { analyzeCompany, generateInsights, generateStrategicIdeas, fetchPeers } from '../lib/api.ts';
-import { getCachedInsights, getCachedStrategicIdeas, cacheInsights, cacheStrategicIdeas } from '../lib/briefingCache.ts';
+import { getCachedInsights, cacheInsights } from '../lib/briefingCache.ts';
 import type { PeerCompany } from '../types/index.ts';
 import { ProgressTracker, phaseToStep } from '../components/ProgressTracker.tsx';
 
@@ -153,18 +153,11 @@ export function HowItWorksPage() {
         console.error('Insights generation failed:', err);
       });
 
-      // Call 3: Strategic framework ideas (independent of peers)
-      const ideasPromise = (async () => {
-        const cached = await getCachedStrategicIdeas(symbol);
-        if (cached && cached.length > 0) {
-          console.log('[cache hit] strategic ideas for', symbol);
-          dispatch({ type: 'SET_IDEAS_ONLY', ideas: cached });
-          return;
-        }
-        const { ideas } = await generateStrategicIdeas(data.promptData);
-        dispatch({ type: 'SET_IDEAS_ONLY', ideas });
-        cacheStrategicIdeas(symbol, ideas);
-      })();
+      // Call 3: Strategic framework ideas (always generate — used for Step 1 voting)
+      const ideasPromise = generateStrategicIdeas(data.promptData)
+        .then(({ ideas }) => {
+          dispatch({ type: 'SET_IDEAS_ONLY', ideas });
+        });
 
       // Track ideas promise so downstream pages can check readiness
       const trackedIdeas = ideasPromise.then(() => ({
