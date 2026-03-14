@@ -296,15 +296,6 @@ export function HowItWorksPage() {
                       ))}
                     </div>
 
-                    {/* Flow note */}
-                    {'flowNote' in step && step.flowNote && (
-                      <div className="mt-2 pt-2 border-t border-[#2a3a4e]">
-                        <p className="text-xs text-[#f97316] italic flex items-start gap-1.5">
-                          <span className="shrink-0 mt-px">{'\u2192'}</span>
-                          {step.flowNote}
-                        </p>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
