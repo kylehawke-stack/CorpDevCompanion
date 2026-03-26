@@ -53,11 +53,11 @@ export default async function handler(req: Request, _context: Context) {
   }
   let trimmedPromptData = keptParts.join('\n\n');
 
-  // Cap total transcript section to ~8K chars to stay within Netlify timeout.
-  // The transcripts are the largest section; we need good quotes, not every word.
+  // Cap total transcript section to ~5K chars to stay well within Netlify's 60s timeout.
+  // Even with truncation, 4 quarters of Q&A is too much context for a 60s window.
   const txIdx = trimmedPromptData.indexOf('EARNINGS CALL TRANSCRIPTS');
-  if (txIdx !== -1 && trimmedPromptData.length - txIdx > 8000) {
-    trimmedPromptData = trimmedPromptData.slice(0, txIdx + 8000);
+  if (txIdx !== -1 && trimmedPromptData.length - txIdx > 5000) {
+    trimmedPromptData = trimmedPromptData.slice(0, txIdx + 5000);
   }
 
   console.log(`generate-insights: promptData ${promptData.length} chars → trimmed ${trimmedPromptData.length} chars (${keptParts.length} sections kept)`);
@@ -85,28 +85,23 @@ Cards 1-6 (Revenue, Profitability, Cash Flow, Firepower, Leverage, Acquisitivene
 
 Generate 2 CATEGORIES of insight cards:
 
-CATEGORY 1: "Earnings Call Insights" — Generate 5-10 individual cards, each with label: "Earnings Call Insights". Aim for the UPPER end of this range. Generate fewer cards ONLY if the earnings transcripts lack sufficient distinct themes.
-Each card focuses on a DIFFERENT theme from earnings calls. Possible themes (only generate where there's real substance — skip thin themes):
+CATEGORY 1: "Earnings Call Insights" — Generate exactly 4 cards, each with label: "Earnings Call Insights".
+Each card focuses on a DIFFERENT theme from earnings calls. Pick the 4 most strategically significant from:
 - Management priorities & strategic vision
 - Growth initiatives & new products
 - Margin commentary & cost management
 - Capital allocation & M&A signals
-- Supply chain & operations
 - Competitive dynamics & market share
-- Channel strategy (DTC, retail, international)
-- Analyst Q&A tensions & pushback
 - Guidance & forward outlook
-Each card MUST include a direct attributed quote, e.g., 'As CEO Scott Tidey noted: "quote here"'. Prefer quotes from the Q&A section over prepared remarks. Each card should cover a DISTINCT theme — no overlap.
+Each card MUST include a direct attributed quote, e.g., 'As CEO Scott Tidey noted: "quote here"'. Prefer quotes from the Q&A section over prepared remarks.
 
-CATEGORY 2: "Analyst Perspectives" — Generate 4-10 individual cards, each with label: "Analyst Perspectives". Aim for the UPPER end of this range. Generate fewer cards ONLY if there is insufficient analyst coverage or Q&A content.
-Each card focuses on a DIFFERENT analyst concern or thesis. Possible themes (only generate where there's real substance):
+CATEGORY 2: "Analyst Perspectives" — Generate exactly 3 cards, each with label: "Analyst Perspectives".
+Each card focuses on a DIFFERENT analyst concern or thesis. Pick the 3 most important from:
 - Revenue outlook & growth expectations
 - Margin trajectory & profitability concerns
-- Competitive threats & market positioning
 - M&A expectations & capital deployment
 - Valuation & price target rationale
-- Sector headwinds & macro risks
-Each card MUST include a direct attributed quote FROM THE ANALYST THEMSELVES — quote the analyst's question or comment, NEVER management's response. Format: 'Analyst Adam Bradley asked: "quote here"'. If no formal analyst coverage exists, use analyst questions from the earnings call Q&A. NEVER attribute a quote to "Management" in an Analyst Perspectives card. Each card should cover a DISTINCT concern — no overlap.
+Each card MUST include a direct attributed quote FROM THE ANALYST THEMSELVES — quote the analyst's question or comment, NEVER management's response. Format: 'Analyst Adam Bradley asked: "quote here"'. If no formal analyst coverage exists, use analyst questions from the earnings call Q&A.
 
 Each card has:
 - "label": the category name (use EXACTLY "Earnings Call Insights" or "Analyst Perspectives")
@@ -143,7 +138,7 @@ Return ONLY valid JSON:
     console.log(`generate-insights: calling Claude with ~${Math.round(promptDataWithCorrections.length / 4)} estimated tokens`);
     const stream = client.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 4000,
+      max_tokens: 2500,
       temperature: 0.7,
       system: systemMessages,
       messages: [{ role: "user", content: taskPrompt }],
