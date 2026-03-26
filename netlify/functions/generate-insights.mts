@@ -27,22 +27,37 @@ export default async function handler(req: Request, _context: Context) {
 
   const client = new Anthropic({ apiKey, baseURL: "https://api.anthropic.com" });
 
-  // Strip SEC filings and news sections — insights only needs transcripts + financials
-  const sectionsToStrip = ['NEWS & PRESS RELEASES', 'SEC FILINGS', 'MERGERS & ACQUISITIONS ACTIVITY'];
-  let trimmedPromptData = promptData;
-  for (const section of sectionsToStrip) {
-    const idx = trimmedPromptData.indexOf(`\n${section}`);
-    if (idx > 0) {
-      const nextSectionIdx = trimmedPromptData.indexOf('\n\n', idx + section.length + 10);
-      if (nextSectionIdx > idx) {
-        const remainder = trimmedPromptData.slice(nextSectionIdx + 2);
-        if (/^[A-Z][A-Z &]+:/.test(remainder)) {
-          trimmedPromptData = trimmedPromptData.slice(0, idx) + trimmedPromptData.slice(nextSectionIdx);
-          continue;
-        }
-      }
-      trimmedPromptData = trimmedPromptData.slice(0, idx).trim();
+  // Extract only the sections this function needs: company profile, transcripts, and analyst data.
+  // The full promptData includes financials, competitive landscape, SEC filings, news, etc.
+  // that are irrelevant for earnings/analyst insight cards and push context over Netlify's limits.
+  const sectionsToKeep = ['COMPANY PROFILE:', 'EARNINGS CALL TRANSCRIPTS', 'ANALYST ESTIMATES', 'ANALYST PRICE TARGETS:'];
+  const allSectionHeaders = [
+    'COMPANY PROFILE:', 'FINANCIAL PERFORMANCE', 'KEY FINANCIAL METRICS:', 'REVENUE SEGMENTATION:',
+    'ANALYST ESTIMATES', 'ANALYST PRICE TARGETS:', 'COMPETITIVE LANDSCAPE',
+    'SEC FILINGS', 'MERGERS & ACQUISITIONS ACTIVITY', 'NEWS & PRESS RELEASES',
+    'EARNINGS CALL TRANSCRIPTS',
+  ];
+
+  const keptParts: string[] = [];
+  for (const keep of sectionsToKeep) {
+    const idx = promptData.indexOf(keep);
+    if (idx === -1) continue;
+    // Find the start of the next section after this one
+    let endIdx = promptData.length;
+    for (const header of allSectionHeaders) {
+      if (header === keep) continue;
+      const hIdx = promptData.indexOf(header, idx + keep.length);
+      if (hIdx > idx && hIdx < endIdx) endIdx = hIdx;
     }
+    keptParts.push(promptData.slice(idx, endIdx).trim());
+  }
+  let trimmedPromptData = keptParts.join('\n\n');
+
+  // Cap total transcript section to ~10K chars to stay within Netlify timeout.
+  // The transcripts are the largest section; we need good quotes, not every word.
+  const txIdx = trimmedPromptData.indexOf('EARNINGS CALL TRANSCRIPTS');
+  if (txIdx !== -1 && trimmedPromptData.length - txIdx > 10000) {
+    trimmedPromptData = trimmedPromptData.slice(0, txIdx + 10000);
   }
 
   const promptDataWithCorrections = corrections
