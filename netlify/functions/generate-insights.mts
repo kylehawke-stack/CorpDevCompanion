@@ -53,12 +53,14 @@ export default async function handler(req: Request, _context: Context) {
   }
   let trimmedPromptData = keptParts.join('\n\n');
 
-  // Cap total transcript section to ~10K chars to stay within Netlify timeout.
+  // Cap total transcript section to ~8K chars to stay within Netlify timeout.
   // The transcripts are the largest section; we need good quotes, not every word.
   const txIdx = trimmedPromptData.indexOf('EARNINGS CALL TRANSCRIPTS');
-  if (txIdx !== -1 && trimmedPromptData.length - txIdx > 10000) {
-    trimmedPromptData = trimmedPromptData.slice(0, txIdx + 10000);
+  if (txIdx !== -1 && trimmedPromptData.length - txIdx > 8000) {
+    trimmedPromptData = trimmedPromptData.slice(0, txIdx + 8000);
   }
+
+  console.log(`generate-insights: promptData ${promptData.length} chars → trimmed ${trimmedPromptData.length} chars (${keptParts.length} sections kept)`);
 
   const promptDataWithCorrections = corrections
     ? `${trimmedPromptData}\n${corrections}`
@@ -138,6 +140,7 @@ Return ONLY valid JSON:
 }`;
 
   try {
+    console.log(`generate-insights: calling Claude with ~${Math.round(promptDataWithCorrections.length / 4)} estimated tokens`);
     const stream = client.messages.stream({
       model: "claude-sonnet-4-6",
       max_tokens: 4000,
@@ -175,8 +178,10 @@ Return ONLY valid JSON:
       },
     });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : "Unknown error";
-    console.error("generate-insights error:", errMsg);
+    const errObj = err as any;
+    const errMsg = errObj?.message ?? "Unknown error";
+    const status = errObj?.status ?? errObj?.statusCode ?? "N/A";
+    console.error(`generate-insights error (status=${status}):`, errMsg, errObj?.error?.message ?? "");
     return new Response(JSON.stringify({ error: errMsg }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
